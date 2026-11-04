@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { Trash2, Car, Receipt, Calculator, Users, RefreshCw, ArrowRight } from "lucide-react";
+import {
+  Trash2,
+  Car,
+  Receipt,
+  Calculator,
+  Users,
+  RefreshCw,
+  ArrowRight,
+} from "lucide-react";
 
 // ==========================================
 // 🔴 SUPABASE CONFIG
@@ -55,7 +63,7 @@ export default function App() {
         { event: "*", schema: "public", table: "trip_expenses" },
         (payload) => {
           fetchExpenses();
-        }
+        },
       )
       .subscribe();
 
@@ -68,7 +76,7 @@ export default function App() {
       .from("trip_expenses")
       .select("*")
       .order("created_at", { ascending: false });
-      
+
     if (data) {
       setExpenses(data);
       const latestOdo = data.find((ex) => ex.odometer_end !== null);
@@ -96,6 +104,9 @@ export default function App() {
 
     if (error) return alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
 
+    await fetchExpenses();
+    alert("✅ บันทึกรายการเรียบร้อยแล้ว!");
+
     setItem("");
     setAmount("");
   };
@@ -120,6 +131,8 @@ export default function App() {
     ]);
 
     if (error) return alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
+    await fetchExpenses();
+    alert("✅ บันทึกค่าน้ำมันเรียบร้อยแล้ว!");
 
     setOdoStart(odoEnd);
     setOdoEnd("");
@@ -127,15 +140,20 @@ export default function App() {
 
   const handleDelete = async (id) => {
     if (window.confirm("ต้องการลบรายการนี้ใช่ไหม?")) {
-      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
       if (error) alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
+      await fetchExpenses();
+        alert("🗑️ ลบรายการเรียบร้อยแล้ว!");
     }
   };
 
   // Calculations
   const totalExpense = useMemo(
     () => expenses.reduce((sum, ex) => sum + Number(ex.amount), 0),
-    [expenses]
+    [expenses],
   );
   const perPerson = totalExpense / 4;
 
@@ -156,8 +174,12 @@ export default function App() {
     });
 
     // 2. แยกกลุ่มคนเป็นหนี้ (balance < 0) และ เจ้าหนี้ (balance > 0)
-    let debtors = balances.filter((b) => b.balance < -0.01).map(b => ({...b}));
-    let creditors = balances.filter((b) => b.balance > 0.01).map(b => ({...b}));
+    let debtors = balances
+      .filter((b) => b.balance < -0.01)
+      .map((b) => ({ ...b }));
+    let creditors = balances
+      .filter((b) => b.balance > 0.01)
+      .map((b) => ({ ...b }));
 
     const transfers = [];
 
@@ -168,7 +190,10 @@ export default function App() {
       let debtor = debtors[d];
       let creditor = creditors[c];
 
-      let amountToTransfer = Math.min(Math.abs(debtor.balance), creditor.balance);
+      let amountToTransfer = Math.min(
+        Math.abs(debtor.balance),
+        creditor.balance,
+      );
 
       if (amountToTransfer > 0.01) {
         transfers.push({
@@ -194,15 +219,17 @@ export default function App() {
       <div className="sticky top-0 z-50 bg-blue-600 text-white p-4 shadow-md">
         <div className="max-w-md mx-auto text-center relative">
           {/* ปุ่ม Sync สำหรับมือถือ */}
-          <button 
-            onClick={fetchExpenses} 
+          <button
+            onClick={fetchExpenses}
             className="absolute right-0 top-0 p-2 bg-blue-700 hover:bg-blue-800 rounded-full transition"
             title="รีเฟรชข้อมูล"
           >
             <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
           </button>
 
-          <p className="text-sm font-light opacity-80 mt-1">ยอดรวมค่าใช้จ่ายทั้งทริป</p>
+          <p className="text-sm font-light opacity-80 mt-1">
+            ยอดรวมค่าใช้จ่ายทั้งทริป
+          </p>
           <h1 className="text-4xl font-bold my-1">
             ฿
             {totalExpense.toLocaleString(undefined, {
@@ -236,7 +263,9 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50"
                 >
                   {DATES.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -248,13 +277,17 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50"
                 >
                   {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
             <div>
-              <label className="text-xs text-gray-500">ชื่อรายการ (เว้นว่างได้)</label>
+              <label className="text-xs text-gray-500">
+                ชื่อรายการ (เว้นว่างได้)
+              </label>
               <input
                 type="text"
                 placeholder="ดึงชื่อหมวดหมู่อัตโนมัติ"
@@ -282,7 +315,9 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50 font-bold text-blue-600"
                 >
                   {MEMBERS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -324,7 +359,9 @@ export default function App() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500">ราคาน้ำมัน (บ./ลิตร)</label>
+                <label className="text-xs text-gray-500">
+                  ราคาน้ำมัน (บ./ลิตร)
+                </label>
                 <input
                   type="number"
                   value={gasPrice}
@@ -333,7 +370,9 @@ export default function App() {
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500">อัตรากินน้ำมัน (กม./ล.)</label>
+                <label className="text-xs text-gray-500">
+                  อัตรากินน้ำมัน (กม./ล.)
+                </label>
                 <input
                   type="number"
                   value={gasRate}
@@ -344,7 +383,9 @@ export default function App() {
             </div>
 
             <div className="bg-orange-50 p-3 rounded-lg text-center my-2 border border-orange-100">
-              <p className="text-xs text-orange-600 mb-1">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
+              <p className="text-xs text-orange-600 mb-1">
+                ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)
+              </p>
               <h3 className="text-2xl font-bold text-orange-600">
                 ฿
                 {previewGasCost.toLocaleString(undefined, {
@@ -367,21 +408,30 @@ export default function App() {
           <div className="flex items-center gap-2 mb-4 text-green-600 font-bold">
             <Users size={20} /> <h2>สรุปเคลียร์เงิน (ใครต้องโอนให้ใคร)</h2>
           </div>
-          
+
           {/* ส่วนแสดงบิลการโอนเงิน */}
           <div className="space-y-2 mb-6">
             {settlements.transfers.length === 0 ? (
-              <p className="text-center text-sm text-gray-400 py-2">ยังไม่มีรายการที่ต้องเคลียร์</p>
+              <p className="text-center text-sm text-gray-400 py-2">
+                ยังไม่มีรายการที่ต้องเคลียร์
+              </p>
             ) : (
               settlements.transfers.map((t, i) => (
-                <div key={i} className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-100">
+                <div
+                  key={i}
+                  className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-100"
+                >
                   <div className="flex items-center gap-2 font-medium">
                     <span className="text-red-500">{t.from}</span>
                     <ArrowRight size={16} className="text-gray-400" />
                     <span className="text-green-600">{t.to}</span>
                   </div>
                   <div className="font-bold text-green-700">
-                    ฿{t.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ฿
+                    {t.amount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </div>
                 </div>
               ))
@@ -392,16 +442,35 @@ export default function App() {
 
           {/* ส่วนแสดงสรุปยอดจ่ายของแต่ละคนเหมือนเดิม */}
           <div className="space-y-3">
-            <p className="text-xs text-gray-500 font-bold mb-2">สรุปยอดสุทธิแต่ละคน</p>
+            <p className="text-xs text-gray-500 font-bold mb-2">
+              สรุปยอดสุทธิแต่ละคน
+            </p>
             {settlements.balances.map((b) => (
-              <div key={b.member} className="flex justify-between items-center text-sm">
+              <div
+                key={b.member}
+                className="flex justify-between items-center text-sm"
+              >
                 <div className="font-medium text-gray-700">{b.member}</div>
                 <div className="text-right">
-                  <span className="text-gray-500 mr-2">จ่ายไป: ฿{b.paidAmount.toLocaleString()}</span>
+                  <span className="text-gray-500 mr-2">
+                    จ่ายไป: ฿{b.paidAmount.toLocaleString()}
+                  </span>
                   {b.balance > 0.01 ? (
-                    <span className="text-green-600 font-bold">(ได้คืน ฿{b.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })})</span>
+                    <span className="text-green-600 font-bold">
+                      (ได้คืน ฿
+                      {b.balance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                      )
+                    </span>
                   ) : b.balance < -0.01 ? (
-                    <span className="text-red-500 font-bold">(ติดลบ ฿{Math.abs(b.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })})</span>
+                    <span className="text-red-500 font-bold">
+                      (ติดลบ ฿
+                      {Math.abs(b.balance).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
+                      )
+                    </span>
                   ) : (
                     <span className="text-gray-400 font-bold">(พอดี)</span>
                   )}
@@ -430,7 +499,9 @@ export default function App() {
                   <div className="flex-1">
                     <p className="text-xs text-gray-400">
                       {ex.expense_date} | จ่ายโดย:{" "}
-                      <span className="font-bold text-blue-600">{ex.paid_by}</span>
+                      <span className="font-bold text-blue-600">
+                        {ex.paid_by}
+                      </span>
                     </p>
                     <p className="font-medium text-gray-800">{ex.item_name}</p>
                     <p className="text-xs text-gray-500">{ex.category}</p>
@@ -455,7 +526,6 @@ export default function App() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
