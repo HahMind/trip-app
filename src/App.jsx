@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
+import Swal from "sweetalert2";
 import {
   Trash2,
   Car,
@@ -8,6 +9,12 @@ import {
   Users,
   RefreshCw,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  FolderClosed,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 
 // ==========================================
@@ -40,6 +47,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // States สำหรับ UI ใหม่
+  const [isListExpanded, setIsListExpanded] = useState(false);
+  const [collapsedDates, setCollapsedDates] = useState({});
+
   // Form State: รายจ่ายทั่วไป
   const [date, setDate] = useState(DATES[0]);
   const [item, setItem] = useState("");
@@ -53,7 +64,6 @@ export default function App() {
   const [gasPrice, setGasPrice] = useState("");
   const [gasRate, setGasRate] = useState("11");
 
-  // ดึงข้อมูลครั้งแรก & ตั้งค่า Realtime
   useEffect(() => {
     fetchExpenses();
     const subscription = supabase
@@ -83,12 +93,14 @@ export default function App() {
       if (latestOdo) setOdoStart(latestOdo.odometer_end.toString());
     }
     setLoading(false);
-    setTimeout(() => setIsSyncing(false), 500); // ดีเลย์อนิเมชั่นนิดนึงให้ดูสมูท
+    setTimeout(() => setIsSyncing(false), 500);
   };
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
-    if (!amount) return alert("กรุณากรอกจำนวนเงิน");
+    if (!amount) {
+      return Swal.fire({ icon: 'warning', title: 'เตือน', text: 'กรุณากรอกจำนวนเงิน' });
+    }
 
     const finalItemName = item.trim() === "" ? category : item;
 
@@ -102,18 +114,21 @@ export default function App() {
       },
     ]);
 
-    if (error) return alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
+    if (error) {
+      return Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: error.message });
+    }
 
     await fetchExpenses();
-    alert("✅ บันทึกรายการเรียบร้อยแล้ว!");
+    Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกรายการเรียบร้อยแล้ว!', timer: 1500, showConfirmButton: false });
 
     setItem("");
     setAmount("");
   };
 
   const handleAddGas = async () => {
-    if (!odoStart || !odoEnd || !gasPrice || !gasRate)
-      return alert("กรอกข้อมูลให้ครบถ้วน");
+    if (!odoStart || !odoEnd || !gasPrice || !gasRate) {
+      return Swal.fire({ icon: 'warning', title: 'เตือน', text: 'กรอกข้อมูลให้ครบถ้วน' });
+    }
 
     const distance = parseFloat(odoEnd) - parseFloat(odoStart);
     const cost = (distance / parseFloat(gasRate)) * parseFloat(gasPrice);
@@ -130,25 +145,53 @@ export default function App() {
       },
     ]);
 
-    if (error) return alert("เกิดข้อผิดพลาดในการบันทึก: " + error.message);
+    if (error) {
+      return Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: error.message });
+    }
+    
     await fetchExpenses();
-    alert("✅ บันทึกค่าน้ำมันเรียบร้อยแล้ว!");
+    Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกค่าน้ำมันเรียบร้อยแล้ว!', timer: 1500, showConfirmButton: false });
 
     setOdoStart(odoEnd);
     setOdoEnd("");
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("ต้องการลบรายการนี้ใช่ไหม?")) {
-      const { error } = await supabase
-        .from("trip_expenses")
-        .delete()
-        .eq("id", id);
-      if (error) alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
-      await fetchExpenses();
-        alert("🗑️ ลบรายการเรียบร้อยแล้ว!");
+    const result = await Swal.fire({
+      title: 'ลบรายการนี้?',
+      text: "ลบแล้วจะไม่สามารถกู้คืนได้!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ลบเลย!',
+      cancelButtonText: 'ยกเลิก'
+    });
+
+    if (result.isConfirmed) {
+      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+      if (error) {
+        Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: error.message });
+      } else {
+        await fetchExpenses();
+        Swal.fire({ icon: 'success', title: 'ลบแล้ว!', text: 'รายการถูกลบเรียบร้อย', timer: 1500, showConfirmButton: false });
+      }
     }
   };
+
+  const toggleDate = (d) => {
+    setCollapsedDates(prev => ({ ...prev, [d]: !prev[d] }));
+  };
+
+  // 🧠 จัดกลุ่มรายการตามวันที่
+  const groupedExpenses = useMemo(() => {
+    const groups = {};
+    expenses.forEach((ex) => {
+      if (!groups[ex.expense_date]) groups[ex.expense_date] = [];
+      groups[ex.expense_date].push(ex);
+    });
+    return groups;
+  }, [expenses]);
 
   // Calculations
   const totalExpense = useMemo(
@@ -165,7 +208,6 @@ export default function App() {
 
   // 🧠 อัลกอริทึมคำนวณว่าใครต้องโอนให้ใคร
   const settlements = useMemo(() => {
-    // 1. หายอดคงเหลือของแต่ละคน
     const balances = MEMBERS.map((member) => {
       const paidAmount = expenses
         .filter((e) => e.paid_by === member)
@@ -173,27 +215,18 @@ export default function App() {
       return { member, balance: paidAmount - perPerson, paidAmount };
     });
 
-    // 2. แยกกลุ่มคนเป็นหนี้ (balance < 0) และ เจ้าหนี้ (balance > 0)
-    let debtors = balances
-      .filter((b) => b.balance < -0.01)
-      .map((b) => ({ ...b }));
-    let creditors = balances
-      .filter((b) => b.balance > 0.01)
-      .map((b) => ({ ...b }));
+    let debtors = balances.filter((b) => b.balance < -0.01).map((b) => ({ ...b }));
+    let creditors = balances.filter((b) => b.balance > 0.01).map((b) => ({ ...b }));
 
     const transfers = [];
 
-    // 3. จับคู่จ่ายหนี้
     let d = 0;
     let c = 0;
     while (d < debtors.length && c < creditors.length) {
       let debtor = debtors[d];
       let creditor = creditors[c];
 
-      let amountToTransfer = Math.min(
-        Math.abs(debtor.balance),
-        creditor.balance,
-      );
+      let amountToTransfer = Math.min(Math.abs(debtor.balance), creditor.balance);
 
       if (amountToTransfer > 0.01) {
         transfers.push({
@@ -214,17 +247,16 @@ export default function App() {
   }, [expenses, perPerson]);
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-20 font-sans ">
+    <div className="min-h-screen bg-gray-600 pb-20 font-sans ">
       {/* 🟢 HEADER */}
       <div className="sticky top-0 z-50 bg-blue-600 text-white p-4 shadow-md">
         <div className="max-w-md mx-auto text-center relative">
-          {/* ปุ่ม Sync สำหรับมือถือ */}
           <button
             onClick={fetchExpenses}
-            className="absolute right-0 top-0 p-2 bg-blue-700 hover:bg-blue-800 rounded-full transition"
+            className="absolute right-0 top-5 p-2 bg-blue-700 hover:bg-blue-800 rounded-full transition"
             title="รีเฟรชข้อมูล"
           >
-            <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
+            <RefreshCw size={24} className={isSyncing ? "animate-spin" : ""} />
           </button>
 
           <p className="text-sm font-light opacity-80 mt-1">
@@ -247,9 +279,11 @@ export default function App() {
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4 space-y-6">
+      {/* 🟢 CONTAINER หลัก (แก้ไข Grid และความกว้างให้รองรับจอใหญ่) */}
+      <div className="max-w-7xl mx-auto p-4 gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-start">
+        
         {/* 🟢 CARD 1: เพิ่มรายการทั่วไป */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-gray-300 p-5 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center gap-2 mb-4 text-blue-600 font-bold">
             <Receipt size={20} /> <h2>จดรายจ่ายใหม่</h2>
           </div>
@@ -263,9 +297,7 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50"
                 >
                   {DATES.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
+                    <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
               </div>
@@ -277,9 +309,7 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50"
                 >
                   {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </div>
@@ -315,9 +345,7 @@ export default function App() {
                   className="w-full p-2 border rounded-lg bg-gray-50 font-bold text-blue-600"
                 >
                   {MEMBERS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
+                    <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
               </div>
@@ -332,7 +360,7 @@ export default function App() {
         </div>
 
         {/* 🟢 CARD 2: โมดูลน้ำมันและเลขไมล์ */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-gray-300 p-5 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center gap-2 mb-4 text-orange-500 font-bold">
             <Car size={20} /> <h2>คำนวณ & จดค่าน้ำมัน</h2>
           </div>
@@ -403,13 +431,86 @@ export default function App() {
           </div>
         </div>
 
-        {/* 🟢 CARD 3: สรุปเคลียร์เงิน (อัปเกรดใหม่) */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+        {/* 🟢 CARD 3: Feed รายการทั้งหมด (อัปเกรด โฟลเดอร์วันที่ + ปุ่มขยาย) */}
+        <div className="bg-gray-300 p-5 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2 text-gray-700 font-bold">
+              <Receipt size={20} /> <h2>รายการทั้งหมด ({expenses.length})</h2>
+            </div>
+            {/* ปุ่มสลับดูเต็ม/ซ่อน */}
+            <button
+              onClick={() => setIsListExpanded(!isListExpanded)}
+              className="flex items-center gap-1 text-xs bg-white text-gray-600 px-3 py-1.5 rounded-full shadow-sm hover:bg-gray-50 transition"
+            >
+              {isListExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {isListExpanded ? "ย่อเก็บ" : "ดูแบบเต็ม"}
+            </button>
+          </div>
+          
+          {loading ? (
+            <p className="text-center text-gray-400 py-4">กำลังโหลดข้อมูล...</p>
+          ) : expenses.length === 0 ? (
+            <p className="text-center text-gray-400 py-4">ยังไม่มีรายจ่าย</p>
+          ) : (
+            // สลับคลาสจำกัดความสูงตาม state isListExpanded
+            <div className={`space-y-4 pr-2 transition-all ${!isListExpanded ? "max-h-96 overflow-y-auto" : ""}`}>
+              {/* เรนเดอร์ตามกลุ่มวันที่ */}
+              {Object.keys(groupedExpenses).map((d) => (
+                <div key={d} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  {/* หัวโฟลเดอร์วันที่ */}
+                  <button
+                    onClick={() => toggleDate(d)}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition border-b border-gray-100"
+                  >
+                    <div className="flex items-center gap-2 font-bold text-gray-700">
+                      {collapsedDates[d] ? <FolderClosed size={16} className="text-blue-500"/> : <FolderOpen size={16} className="text-blue-500"/>}
+                      <span>{d}</span>
+                      <span className="text-xs font-normal text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                        {groupedExpenses[d].length} รายการ
+                      </span>
+                    </div>
+                    {collapsedDates[d] ? <ChevronRight size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+                  </button>
+
+                  {/* เนื้อหาข้างในโฟลเดอร์ */}
+                  {!collapsedDates[d] && (
+                    <div className="divide-y divide-gray-100">
+                      {groupedExpenses[d].map((ex) => (
+                        <div key={ex.id} className="flex justify-between items-center p-3 pl-8">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-400 mb-0.5">
+                              จ่ายโดย: <span className="font-bold text-blue-600">{ex.paid_by}</span>
+                            </p>
+                            <p className="font-medium text-gray-800">{ex.item_name}</p>
+                            <p className="text-xs text-gray-500">{ex.category}</p>
+                          </div>
+                          <div className="text-right ml-4">
+                            <p className="font-bold text-red-600">
+                              ฿{Number(ex.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                            <button
+                              onClick={() => handleDelete(ex.id)}
+                              className="text-gray-400 hover:text-red-500 mt-1"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 🟢 CARD 4: สรุปเคลียร์เงิน (อัปเกรดใหม่) */}
+        <div className="bg-gray-300 p-5 rounded-xl shadow-sm border border-gray-200">
           <div className="flex items-center gap-2 mb-4 text-green-600 font-bold">
             <Users size={20} /> <h2>สรุปเคลียร์เงิน (ใครต้องโอนให้ใคร)</h2>
           </div>
 
-          {/* ส่วนแสดงบิลการโอนเงิน */}
           <div className="space-y-2 mb-6">
             {settlements.transfers.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-2">
@@ -438,9 +539,8 @@ export default function App() {
             )}
           </div>
 
-          <hr className="my-4 border-gray-100" />
+          <hr className="my-4  border-gray-400" />
 
-          {/* ส่วนแสดงสรุปยอดจ่ายของแต่ละคนเหมือนเดิม */}
           <div className="space-y-3">
             <p className="text-xs text-gray-500 font-bold mb-2">
               สรุปยอดสุทธิแต่ละคน
@@ -478,53 +578,6 @@ export default function App() {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* 🟢 CARD 4: Feed รายการทั้งหมด */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center gap-2 mb-4 text-gray-700 font-bold">
-            <Receipt size={20} /> <h2>รายการทั้งหมด ({expenses.length})</h2>
-          </div>
-          {loading ? (
-            <p className="text-center text-gray-400 py-4">กำลังโหลดข้อมูล...</p>
-          ) : expenses.length === 0 ? (
-            <p className="text-center text-gray-400 py-4">ยังไม่มีรายจ่าย</p>
-          ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-              {expenses.map((ex) => (
-                <div
-                  key={ex.id}
-                  className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100"
-                >
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-400">
-                      {ex.expense_date} | จ่ายโดย:{" "}
-                      <span className="font-bold text-blue-600">
-                        {ex.paid_by}
-                      </span>
-                    </p>
-                    <p className="font-medium text-gray-800">{ex.item_name}</p>
-                    <p className="text-xs text-gray-500">{ex.category}</p>
-                  </div>
-                  <div className="text-right ml-4">
-                    <p className="font-bold text-red-600">
-                      ฿
-                      {Number(ex.amount).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </p>
-                    <button
-                      onClick={() => handleDelete(ex.id)}
-                      className="text-gray-400 hover:text-red-500 mt-1"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
