@@ -551,7 +551,7 @@ export default function App() {
         <HistoryModal
           expenses={historyExpenses}
           onClose={() => setShowHistory(false)}
-          onUndo={handleUndoHistory} // 🧠 เปลี่ยนจาก Delete เป็น Undo ให้เข้าใจตรงกัน
+          onUndo={handleUndoHistory} // 🧠เปลี่ยนจาก Delete เป็น Undo ให้เข้าใจตรงกัน
         />
       )}
     </div>

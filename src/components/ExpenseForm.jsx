@@ -39,7 +39,7 @@ export default function ExpenseForm({
           <div className="flex flex-col">
             <label className="mb-1 text-xs text-gray-500">วันที่</label>
             <div className="flex gap-2">
-              {/* 🧠 เปลี่ยนเป็น input แบบปฏิทิน */}
+              {/*  เปลี่ยนเป็น input แบบปฏิทิน */}
               <input
                 type="date"
                 value={date}
@@ -52,7 +52,7 @@ export default function ExpenseForm({
                 onClick={setToday}
                 className="rounded-lg bg-blue-100 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-200 w-1/4"
               >
-                วันนี้
+                วันนี
               </button>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function ExpenseForm({
           ชื่อรายการ (เว้นว่างได้)
           <input
             type="text"
-            placeholder="ดึงชื่อหมวดหมู่อัตโนมัติ"
+            placeholder="ดึงชื่อหมวดรายการ"
             value={item}
             onChange={(event) => onItemChange(event.target.value)}
             className="w-full mt-1 rounded-lg border p-2 text-sm"
@@ -89,7 +89,7 @@ export default function ExpenseForm({
               placeholder="0.00"
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
-              className="w-full rounded-lg border p-2 text-lg font-bold text-red-600"
+              className="w-full rounded-lg border p-2 text-lg font-bold text-gray-900"
             />
           </label>
           <label className="flex flex-col text-xs text-gray-500">

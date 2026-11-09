@@ -1,33 +1,67 @@
 import { History, RotateCcw, X } from "lucide-react";
+import { useEffect } from "react";
 
 export default function HistoryModal({ expenses, onClose, onUndo }) {
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEsc);
+
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
-      <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between bg-blue-600 p-4 text-white">
-          <h2 className="flex items-center gap-2 font-bold"><History size={20} /> ประวัติการเคลียร์ยอด</h2>
-          <button onClick={onClose} className="hover:text-blue-200"><X size={24} /></button>
+          <h2 className="flex items-center gap-2 font-bold">
+            <History size={20} /> ประวัติการเคลียร์ยอด
+          </h2>
+          <button onClick={onClose} className="hover:text-blue-200">
+            <X size={24} />
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {expenses.length === 0 ? (
-            <p className="py-10 text-center text-gray-400">ยังไม่มีประวัติการโอนเงิน</p>
+            <p className="py-10 text-center text-gray-400">
+              ยังไม่มีประวัติการโอนเงิน
+            </p>
           ) : (
             <div className="space-y-3">
               {expenses.map((expense) => (
-                <div key={expense.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3"
+                >
                   <div>
-                    <p className="text-xs text-gray-400">{expense.expense_date}</p>
-                    <p className="font-medium text-gray-700">{expense.item_name}</p>
+                    <p className="text-xs text-gray-400">
+                      {expense.expense_date}
+                    </p>
+                    <p className="font-medium text-gray-700">
+                      {expense.item_name}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3 text-right">
-                    <p className="font-bold text-green-600">฿{Number(expense.amount).toLocaleString()}</p>
-                    {/* 🧠 เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
-                    <button 
-                      onClick={() => onUndo(expense.id)} 
-                      className="text-gray-300 transition hover:text-blue-500 flex items-center gap-1 text-xs ml-2 bg-white px-2 py-1 rounded shadow-sm border border-gray-100"
+                    <p className="font-bold text-green-600">
+                      ฿{Number(expense.amount).toLocaleString()}
+                    </p>
+                    {/*  เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
+                    <button
+                      onClick={() => onUndo(expense.id)}
+                      className="text-gray-100 transition hover:text-black flex items-center gap-1 text-xs ml-2 bg-red-500 px-2 py-1 rounded-3xl shadow-sm border border-gray-100"
                       title="กู้คืนรายการนี้"
                     >
-                      <RotateCcw size={14} /> กู้คืน
+                      <RotateCcw size={14} /> กู้คืนรายการ
                     </button>
                   </div>
                 </div>
