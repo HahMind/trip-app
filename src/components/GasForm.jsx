@@ -22,7 +22,7 @@ export default function GasForm({
       </div>
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-gray-400">
+          <label className="text-lg text-gray-400">
             เลขไมล์เริ่มต้น
             <input 
               type="number" 
@@ -32,7 +32,7 @@ export default function GasForm({
               className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
             />
           </label>
-          <label className="text-xs text-gray-400">
+          <label className="text-lg text-gray-400">
             เลขไมล์ล่าสุด
             <input 
               type="number" 
@@ -44,7 +44,7 @@ export default function GasForm({
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-gray-400">
+          <label className="text-lg text-gray-400">
             ราคาน้ำมัน (บ./ลิตร)
             <input 
               type="number" 
@@ -54,7 +54,7 @@ export default function GasForm({
               className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
             />
           </label>
-          <label className="text-xs text-gray-400">
+          <label className="text-lg text-gray-400">
             อัตรากินน้ำมัน (กม./ล.)
             <input 
               type="number" 
@@ -66,7 +66,7 @@ export default function GasForm({
           </label>
         </div>
         <div className="my-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-center">
-          <p className="mb-1 text-xs text-lime-400">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
+          <p className="mb-1 text-lg text-lime-400">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
           <h3 className="text-2xl font-bold text-lime-400">฿{formatMoney(previewGasCost)}</h3>
         </div>
         <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
