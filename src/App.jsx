@@ -24,24 +24,23 @@ const CATEGORIES = [
 ];
 const HISTORY_CATEGORY = "✅ ประวัติการโอน";
 const QR_IMAGES = {
-  "หมิว" : "/Mind's QR.png",
-  "มาย" : "/Mind's QR.png",
-  "เมย์" : "/Mind's QR.png",
-  "พี่เบส" : "/Mind's QR.png",
-}
+  หมิว: "/Mind's QR.png",
+  มาย: "/Mind's QR.png",
+  เมย์: "/Mind's QR.png",
+  พี่เบส: "/Mind's QR.png",
+};
 
-
-// 🧠 Helper จัดการวันที่ (ให้ปฏิทิน HTML คุยกับฐานข้อมูลรู้เรื่อง)
-const getTodayISO = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+//  Helper จัดการวันที่
+const getTodayISO = () => new Date().toLocaleDateString("en-CA");
 const formatForDB = (isoDate) => {
   if (!isoDate || !isoDate.includes("-")) return isoDate;
   const [y, m, d] = isoDate.split("-");
-  return `${d}/${m}/${y}`; // DD/MM/YYYY
+  return `${d}/${m}/${y}`;
 };
 const parseForUI = (thDate) => {
   if (!thDate || !thDate.includes("/")) return getTodayISO();
   const [d, m, y] = thDate.split("/");
-  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`; // YYYY-MM-DD
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 };
 
 export default function App() {
@@ -50,33 +49,49 @@ export default function App() {
     return saved ? JSON.parse(saved) : ["หมิว", "มาย", "เมย์", "พี่เบส"];
   });
 
-  const handleAddMenber = async () => {
+  const [paidBy, setPaidBy] = useState(
+    () => localStorage.getItem("defaultPaidBy") || MEMBERS[0],
+  );
+
+  //  อัปเกรดฟังก์ชันเพิ่มคน ให้เปลี่ยนช่องเลือกคนเป็นชื่อใหม่ทันที
+  const handleAddMember = async () => {
     const { value: name } = await Swal.fire({
       title: "เพิ่มสมาชิกใหม่",
       input: "text",
       inputLabel: "ชื่อสมาชิก",
       inputPlaceholder: "กรอกชื่อ",
       showCancelButton: true,
+      confirmButtonText: "บันทึก",
+      confirmButtonColor: "#D7FF3B",
+      cancelButtonText: "ยกเลิก",
     });
-    if (name && !MEMBERS.includes(name)) {
-      const newMenbers = [...MEMBERS, name];
-      setMembers(newMenbers);
-      localStorage.setItem("tripMembers", JSON.stringify(newMenbers));
+
+    if (name) {
+      const trimmedName = name.trim();
+      if (!MEMBERS.includes(trimmedName)) {
+        const newMembers = [...MEMBERS, trimmedName];
+        setMembers(newMembers);
+        localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+        setPaidBy(trimmedName);
+        localStorage.setItem("defaultPaidBy", trimmedName);
+      } else {
+        setPaidBy(trimmedName);
+      }
     }
   };
 
   const handleRemoveMember = (name) => {
-    const menberData = settlements.balances.find((b) => b.member === name);
-    if (menberData && Math.abs(menberData.balance) > 0.01) {
+    const memberData = settlements.balances.find((b) => b.member === name);
+    if (memberData && Math.abs(memberData.balance) > 0.01) {
       return Swal.fire({
         icon: "error",
         title: "ลบไม่ได้จ่ะ No No",
         text: `${name} มียอดค้างชำระอยู่`,
       });
     }
-    const newMenbers = MEMBERS.filter((m) => m !== name);
-    setMembers(newMenbers);
-    localStorage.setItem("tripMembers", JSON.stringify(newMenbers));
+    const newMembers = MEMBERS.filter((m) => m !== name);
+    setMembers(newMembers);
+    localStorage.setItem("tripMembers", JSON.stringify(newMembers));
     Swal.fire({
       icon: "success",
       title: "ลบสมาชิกสำเร็จ",
@@ -93,19 +108,18 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [editId, setEditId] = useState(null);
 
-  // 🧠 State วันที่ เปลี่ยนมาใช้รูปแบบ YYYY-MM-DD เป็นค่าเริ่มต้น
   const [date, setDate] = useState(getTodayISO());
-
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
-  const [paidBy, setPaidBy] = useState(
-    () => localStorage.getItem("defaultPaidBy") || MEMBERS[0],
-  );
   const [odoStart, setOdoStart] = useState("");
   const [odoEnd, setOdoEnd] = useState("");
-  const [gasPrice, setGasPrice] = useState("");
-  const [gasRate, setGasRate] = useState("11");
+  const [gasPrice, setGasPrice] = useState(
+    () => localStorage.getItem("defaultGasPrice") || "",
+  );
+  const [gasRate, setGasRate] = useState(
+    () => localStorage.getItem("defaultGasRate") || "11",
+  );
 
   const refreshExpenses = useCallback(async () => {
     setIsSyncing(true);
@@ -193,7 +207,7 @@ export default function App() {
         text: "กรุณากรอกจำนวนเงิน",
       });
     const payload = {
-      expense_date: formatForDB(date), // 🧠 แปลงเป็น DD/MM/YYYY ก่อนส่ง
+      expense_date: formatForDB(date),
       item_name: item.trim() || category,
       amount: parseFloat(amount),
       category,
@@ -241,7 +255,7 @@ export default function App() {
 
   const handleEdit = (expense) => {
     setEditId(expense.id);
-    setDate(parseForUI(expense.expense_date)); // 🧠 แปลงกลับมาเป็น YYYY-MM-DD เพื่อยัดใส่ปฏิทิน
+    setDate(parseForUI(expense.expense_date));
     setPaidBy(expense.paid_by);
 
     if (expense.category === "⛽ ค่าน้ำมัน" && expense.odometer_start) {
@@ -269,6 +283,9 @@ export default function App() {
         title: "เตือน",
         text: "กรอกข้อมูลให้ครบ",
       });
+    localStorage.setItem("defaultGasPrice", gasPrice);
+    localStorage.setItem("defaultGasRate", gasRate);
+
     const payload = {
       expense_date: formatForDB(date),
       item_name: `ค่าน้ำมัน (ไมล์ ${odoStart}-${odoEnd})`,
@@ -340,7 +357,6 @@ export default function App() {
     }
   };
 
-  // 🧠 เพิ่มฟังก์ชันกู้คืนรายการเคลียร์ยอด
   const handleUndoHistory = async (id) => {
     const result = await Swal.fire({
       title: "กู้คืนยอดนี้?",
@@ -363,7 +379,6 @@ export default function App() {
     }
   };
 
-
   const handleSettleDebt = async (from, to, settleAmount) => {
     if (!navigator.onLine)
       return Swal.fire({
@@ -372,28 +387,27 @@ export default function App() {
         text: "เน็ตหลุดจ้า",
       });
 
-   const qrUrl = QR_IMAGES[to] || "https://placehold.co/250x250?text=No+QR+Code";
+    const qrUrl =
+      QR_IMAGES[to] || "https://placehold.co/250x250?text=No+QR+Code";
 
-   const result = await Swal.fire({
-  title: `โอนเงินให้ ${to}`   ,
-  text: `ยอดเงิน ฿${settleAmount.toLocaleString()}`,
-  imageUrl: qrUrl,
-  imageWidth: 250,
-  imageHeight: 250,
-  imageAlt: `QR Code ของ ${to}`,
-  showCancelButton: true,
-  confirmButtonText: "ยืนยันโอนแล้ว",
-  confirmButtonColor: "#D7FF3B",
-  cancelButtonText: "ยกเลิก",
-   })
-    
+    const result = await Swal.fire({
+      title: `โอนเงินให้ ${to}`,
+      text: `ยอดเงิน ฿${settleAmount.toLocaleString()}`,
+      imageUrl: qrUrl,
+      imageWidth: 250,
+      imageHeight: 250,
+      imageAlt: `QR Code ของ ${to}`,
+      showCancelButton: true,
+      confirmButtonText: "ยืนยันโอนแล้ว",
+      confirmButtonColor: "#D7FF3B",
+      cancelButtonText: "ยกเลิก",
+    });
 
     if (!result.isConfirmed) return;
 
-    // 3. ยืนยันโอนเสร็จ บันทึกประวัติ
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
-    
+
     await supabase.from("trip_expenses").insert([
       {
         expense_date: formattedDate,
@@ -482,14 +496,16 @@ export default function App() {
   }, [regularExpenses, historyExpenses, perPerson]);
 
   return (
-    <div className="relative min-h-screen bg-gray-950 pb-20 font-sans text-gray-100">
+    <div className="relative min-h-screen bg-black pb-20 font-sans text-gray-100">
       <TripHeader
         totalExpense={totalExpense}
         perPerson={perPerson}
         isSyncing={isSyncing}
         onRefresh={refreshExpenses}
+        MEMBERS={MEMBERS}
       />
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* 🧠 โยน onAddMember ลงไปใน ExpenseForm */}
         <ExpenseForm
           editId={editId}
           date={date}
@@ -504,10 +520,11 @@ export default function App() {
           onItemChange={setItem}
           onAmountChange={setAmount}
           onPaidByChange={handlePaidByChange}
+          onAddMember={handleAddMember}
           onSubmit={handleAddExpense}
           onCancel={cancelEdit}
         />
-       
+
         <ExpenseList
           expenses={regularExpenses}
           groupedExpenses={groupedExpenses}
@@ -521,13 +538,13 @@ export default function App() {
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
+        {/* 🧠 เอา handleAddMember ออกจาก SettlementCard แล้ว */}
         <SettlementCard
           settlements={settlements}
-          handleAddMenber={handleAddMenber}
           handleRemoveMember={handleRemoveMember}
           onSettle={handleSettleDebt}
         />
-         <GasForm
+        <GasForm
           odoStart={odoStart}
           odoEnd={odoEnd}
           gasPrice={gasPrice}
@@ -542,7 +559,7 @@ export default function App() {
       </main>
       <button
         onClick={() => setShowHistory(true)}
-        className="fixed bottom-6 right-6 z-40 rounded-full bg-blue-600 p-4 text-white shadow-xl transition hover:bg-lime-300"
+        className="fixed bottom-6 right-6 z-40 rounded-full bg-amber-500 p-4 text-gray-950 shadow-xl shadow-lime-500/10 transition hover:bg-amber-700"
         title="ดูประวัติการเคลียร์เงิน"
       >
         <History size={24} />
@@ -551,7 +568,7 @@ export default function App() {
         <HistoryModal
           expenses={historyExpenses}
           onClose={() => setShowHistory(false)}
-          onUndo={handleUndoHistory} // เปลี่ยนจาก Delete เป็น Undo ให้เข้าใจตรงกัน
+          onUndo={handleUndoHistory}
         />
       )}
     </div>

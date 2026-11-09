@@ -58,7 +58,7 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
                     {/*  เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
                     <button
                       onClick={() => onUndo(expense.id)}
-                      className="ml-2 flex items-center gap-1 rounded-3xl border border-red-500 bg-red-500 px-2 py-1 text-xs text-gray-950 transition hover:bg-red-400"
+                      className="ml-2 flex items-center gap-1 rounded-3xl border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs text-sky-400 transition hover:bg-sky-500 hover:text-gray-950"
                       title="กู้คืนรายการนี้"
                     >
                       <RotateCcw size={14} /> กู้คืนรายการ

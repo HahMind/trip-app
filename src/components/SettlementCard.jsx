@@ -1,9 +1,8 @@
-import { ArrowRight, CheckCircle, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRight, CheckCircle, Trash2, Users } from "lucide-react"; // 🧠 เอา Plus ออก
 
 export default function SettlementCard({
   settlements,
   onSettle,
-  handleAddMenber,
   handleRemoveMember,
 }) {
   const formatMoney = (value) =>
@@ -15,14 +14,7 @@ export default function SettlementCard({
         <div className="flex items-center gap-2">
           <Users size={20} /> <h2>สรุปเคลียร์เงิน</h2>
         </div>
-        {/* ปุ่มเพิ่มสมาชิกใหม่ */}
-        <button
-          type="button"
-          onClick={handleAddMenber}
-          className="flex items-center gap-1 rounded bg-lime-400 px-2 py-1 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
-        >
-          <Plus size={14} /> เพิ่มสมาชิก
-        </button>
+        {/* 🧠 ปุ่มเพิ่มสมาชิกถูกถอดออกไปแล้ว */}
       </div>
       <div className="mb-6 space-y-2">
         {settlements.transfers.length === 0 ? (
@@ -33,13 +25,13 @@ export default function SettlementCard({
           settlements.transfers.map((transfer) => (
             <div
               key={`${transfer.from}-${transfer.to}`}
-              className="rounded-lg border border-lime-900 bg-gray-800 p-3"
+              className="rounded-lg border border-lime-900 bg-gray-800 p-3 "
             >
               <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 font-medium">
-                  <span className="text-red-500">{transfer.from}</span>
+                <div className="flex items-center gap-2 font-medium p-2 ">
+                  <span className="text-gray-100">{transfer.from}</span>
                   <ArrowRight size={16} className="text-gray-400" />
-                  <span className="text-lime-400">{transfer.to}</span>
+                  <span className="text-gray-100">{transfer.to}</span>
                 </div>
                 <div className="font-bold text-lime-400">
                   ฿{formatMoney(transfer.amount)}
@@ -49,7 +41,7 @@ export default function SettlementCard({
                 onClick={() =>
                   onSettle(transfer.from, transfer.to, transfer.amount)
                 }
-                className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
+                className="flex w-10/12 m-auto items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
               >
                 <CheckCircle size={14} /> เคลียร์ยอดนี้
               </button>
@@ -57,7 +49,7 @@ export default function SettlementCard({
           ))
         )}
       </div>
-      <hr className="my-4 border-gray-400" />
+      <hr className="my-4 border-gray-800" />
       <div className="space-y-3">
         <p className="mb-2 text-xs font-bold text-gray-400">
           สรุปยอดสุทธิแต่ละคน
@@ -69,7 +61,6 @@ export default function SettlementCard({
           >
             <div className="flex items-center gap-2 font-medium text-gray-100">
               <span>{balance.member}</span>
-              {/* ปุ่มลบสมาชิก */}
               <button
                 type="button"
                 onClick={() => handleRemoveMember(balance.member)}

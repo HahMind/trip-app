@@ -24,28 +24,52 @@ export default function GasForm({
         <div className="grid grid-cols-2 gap-3">
           <label className="text-xs text-gray-400">
             เลขไมล์เริ่มต้น
-            <input type="number" value={odoStart} onChange={(event) => onOdoStartChange(event.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100" />
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={odoStart} 
+              onChange={(event) => onOdoStartChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
           </label>
           <label className="text-xs text-gray-400">
             เลขไมล์ล่าสุด
-            <input type="number" value={odoEnd} onChange={(event) => onOdoEndChange(event.target.value)} className="w-full rounded-lg border border-yellow-400 bg-gray-800 p-2 text-gray-100" />
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={odoEnd} 
+              onChange={(event) => onOdoEndChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-xs text-gray-400">
             ราคาน้ำมัน (บ./ลิตร)
-            <input type="number" value={gasPrice} onChange={(event) => onGasPriceChange(event.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100" />
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={gasPrice} 
+              onChange={(event) => onGasPriceChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
           </label>
           <label className="text-xs text-gray-400">
             อัตรากินน้ำมัน (กม./ล.)
-            <input type="number" value={gasRate} onChange={(event) => onGasRateChange(event.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100" />
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={gasRate} 
+              onChange={(event) => onGasRateChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
           </label>
         </div>
-        <div className="my-2 rounded-lg border border-lime-900 bg-gray-800 p-3 text-center">
+        <div className="my-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-center">
           <p className="mb-1 text-xs text-lime-400">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
           <h3 className="text-2xl font-bold text-lime-400">฿{formatMoney(previewGasCost)}</h3>
         </div>
-        <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
+        <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-700">
           + บันทึกค่าน้ำมัน
         </button>
       </div>

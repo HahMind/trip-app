@@ -1,6 +1,6 @@
 import { RefreshCw } from "lucide-react";
 
-export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefresh }) {
+export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefresh, MEMBERS }) {
   const formatMoney = (value) =>
     value.toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -19,8 +19,8 @@ export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefre
         </button>
         <p className="mt-1 text-sm font-light opacity-80">ยอดรวมค่าใช้จ่ายทั้งทริป</p>
         <h1 className="my-1 text-4xl font-bold">฿{formatMoney(totalExpense)}</h1>
-        <p className="inline-block rounded-full bg-gray-800 px-3 py-1 text-sm text-lime-400">
-          หาร 4 คน = ตกคนละ ฿{formatMoney(perPerson)}
+        <p className="inline-block rounded-full bg-gray-800 px-3 py-1 mt-3 text-sm text-lime-400">
+          หาร {MEMBERS.length} คน = ตกคนละ ฿{formatMoney(perPerson)}
         </p>
       </div>
     </header>
