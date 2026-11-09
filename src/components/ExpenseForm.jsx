@@ -88,7 +88,7 @@ export default function ExpenseForm({
               placeholder="0.00"
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-lg font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
             />
           </label>
           <label className="flex flex-col text-xs text-gray-400">
