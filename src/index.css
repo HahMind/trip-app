@@ -4,7 +4,7 @@
   select:focus,
   textarea:focus,
   input:focus {
-    font-size: 14px;
+    font-size: 16px;
     background: transparent; 
   }
 }
