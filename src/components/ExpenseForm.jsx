@@ -76,7 +76,7 @@ export default function ExpenseForm({
             placeholder="ดึงชื่อหมวดรายการ"
             value={item}
             onChange={(event) => onItemChange(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-lg text-gray-100 focus:border-lime-400 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -88,7 +88,7 @@ export default function ExpenseForm({
               placeholder="0.00"
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-lg font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
             />
           </label>
           <label className="flex flex-col text-xs text-gray-400">
