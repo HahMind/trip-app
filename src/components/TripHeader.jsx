@@ -12,10 +12,10 @@ export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefre
       <div className="relative mx-auto max-w-md text-center">
         <button
           onClick={onRefresh}
-          className="absolute right-0 top-5 rounded-full bg-gray-800 p-2 transition hover:bg-gray-700"
+          className="absolute right-5 top-5 rounded-full bg-gray-800 p-2 transition hover:bg-gray-700"
           title="รีเฟรชข้อมูล"
         >
-          <RefreshCw size={24} className={isSyncing ? "animate-spin" : ""} />
+          <RefreshCw size={40} className={isSyncing ? "animate-spin" : ""} />
         </button>
         <p className="mt-1 text-sm font-light opacity-80">ยอดรวมค่าใช้จ่ายทั้งทริป</p>
         <h1 className="my-1 text-4xl font-bold">฿{formatMoney(totalExpense)}</h1>
