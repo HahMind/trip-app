@@ -69,7 +69,7 @@ export default function GasForm({
           <p className="mb-1 text-xs text-lime-400">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
           <h3 className="text-2xl font-bold text-lime-400">฿{formatMoney(previewGasCost)}</h3>
         </div>
-        <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-700">
+        <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
           + บันทึกค่าน้ำมัน
         </button>
       </div>

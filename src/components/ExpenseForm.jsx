@@ -43,7 +43,7 @@ export default function ExpenseForm({
                 type="date"
                 value={date}
                 onChange={(event) => onDateChange(event.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-yellow-700 focus:outline-none"
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
               />
               <button
                 type="button"
@@ -59,7 +59,7 @@ export default function ExpenseForm({
             <select
               value={category}
               onChange={(event) => onCategoryChange(event.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-yellow-700 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
             >
               {categories.map((option) => (
                 <option key={option} value={option}>
@@ -76,7 +76,7 @@ export default function ExpenseForm({
             placeholder="ดึงชื่อหมวดรายการ"
             value={item}
             onChange={(event) => onItemChange(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-yellow-700 focus:outline-none"
+            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -84,11 +84,11 @@ export default function ExpenseForm({
             <span className="mb-1">จำนวนเงิน (บาท)</span>
             <input
               type="number"
-              imputMode="decimal"
+              inputMode="decimal"
               placeholder="0.00"
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-lg font-bold text-gray-100 focus:border-yellow-700 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-lg font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
             />
           </label>
           <label className="flex flex-col text-xs text-gray-400">
@@ -103,7 +103,7 @@ export default function ExpenseForm({
                   onPaidByChange(event.target.value);
                 }
               }}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-yellow-700 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
             >
               {members.map((member) => (
                 <option key={member} value={member}>
