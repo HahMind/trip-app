@@ -16,18 +16,18 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
   }, [onClose]);
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between bg-blue-600 p-4 text-white">
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
           <h2 className="flex items-center gap-2 font-bold">
             <History size={20} /> ประวัติการเคลียร์ยอด
           </h2>
-          <button onClick={onClose} className="hover:text-blue-200">
+          <button onClick={onClose} className="hover:text-lime-300">
             <X size={24} />
           </button>
         </div>
@@ -41,24 +41,24 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
               {expenses.map((expense) => (
                 <div
                   key={expense.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-3"
+                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3"
                 >
                   <div>
                     <p className="text-xs text-gray-400">
                       {expense.expense_date}
                     </p>
-                    <p className="font-medium text-gray-700">
+                    <p className="font-medium text-gray-100">
                       {expense.item_name}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 text-right">
-                    <p className="font-bold text-green-600">
+                    <p className="font-bold text-lime-400">
                       ฿{Number(expense.amount).toLocaleString()}
                     </p>
                     {/*  เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
                     <button
                       onClick={() => onUndo(expense.id)}
-                      className="text-gray-100 transition hover:text-black flex items-center gap-1 text-xs ml-2 bg-red-500 px-2 py-1 rounded-3xl shadow-sm border border-gray-100"
+                      className="ml-2 flex items-center gap-1 rounded-3xl border border-red-500 bg-red-500 px-2 py-1 text-xs text-gray-950 transition hover:bg-red-400"
                       title="กู้คืนรายการนี้"
                     >
                       <RotateCcw size={14} /> กู้คืนรายการ

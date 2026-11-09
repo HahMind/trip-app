@@ -10,8 +10,8 @@ export default function SettlementCard({
     value.toLocaleString(undefined, { minimumFractionDigits: 2 });
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-gray-300 p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between font-bold text-green-600">
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between font-bold text-lime-400">
         <div className="flex items-center gap-2">
           <Users size={20} /> <h2>สรุปเคลียร์เงิน</h2>
         </div>
@@ -19,7 +19,7 @@ export default function SettlementCard({
         <button
           type="button"
           onClick={handleAddMenber}
-          className="flex items-center gap-1 rounded bg-green-500 px-2 py-1 text-xs text-white shadow-sm transition hover:bg-green-600"
+          className="flex items-center gap-1 rounded bg-lime-400 px-2 py-1 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
         >
           <Plus size={14} /> เพิ่มสมาชิก
         </button>
@@ -33,15 +33,15 @@ export default function SettlementCard({
           settlements.transfers.map((transfer) => (
             <div
               key={`${transfer.from}-${transfer.to}`}
-              className="rounded-lg border border-green-100 bg-green-50 p-3"
+              className="rounded-lg border border-lime-900 bg-gray-800 p-3"
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-red-500">{transfer.from}</span>
                   <ArrowRight size={16} className="text-gray-400" />
-                  <span className="text-green-600">{transfer.to}</span>
+                  <span className="text-lime-400">{transfer.to}</span>
                 </div>
-                <div className="font-bold text-green-700">
+                <div className="font-bold text-lime-400">
                   ฿{formatMoney(transfer.amount)}
                 </div>
               </div>
@@ -49,7 +49,7 @@ export default function SettlementCard({
                 onClick={() =>
                   onSettle(transfer.from, transfer.to, transfer.amount)
                 }
-                className="flex w-full items-center justify-center gap-1 rounded bg-green-500 py-2 text-xs text-white shadow-sm transition hover:bg-green-600"
+                className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
               >
                 <CheckCircle size={14} /> เคลียร์ยอดนี้
               </button>
@@ -59,7 +59,7 @@ export default function SettlementCard({
       </div>
       <hr className="my-4 border-gray-400" />
       <div className="space-y-3">
-        <p className="mb-2 text-xs font-bold text-gray-500">
+        <p className="mb-2 text-xs font-bold text-gray-400">
           สรุปยอดสุทธิแต่ละคน
         </p>
         {settlements.balances.map((balance) => (
@@ -67,7 +67,7 @@ export default function SettlementCard({
             key={balance.member}
             className="flex items-center justify-between text-sm"
           >
-            <div className="flex items-center gap-2 font-medium text-gray-700">
+            <div className="flex items-center gap-2 font-medium text-gray-100">
               <span>{balance.member}</span>
               {/* ปุ่มลบสมาชิก */}
               <button
@@ -82,7 +82,7 @@ export default function SettlementCard({
             </div>
             <div className="text-right">
               {balance.balance > 0.01 ? (
-                <span className="font-bold text-green-600">
+                <span className="font-bold text-lime-400">
                   (ได้คืน ฿{formatMoney(balance.balance)})
                 </span>
               ) : balance.balance < -0.01 ? (

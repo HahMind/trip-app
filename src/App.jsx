@@ -347,7 +347,7 @@ export default function App() {
       text: "ยอดหนี้จะกลับไปเป็นสถานะ 'ยังไม่เคลียร์' เหมือนเดิม",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#3b82f6",
+      confirmButtonColor: "#D7FF3B",
       cancelButtonText: "ยกเลิก",
       confirmButtonText: "ใช่, กู้คืนเลย!",
     });
@@ -383,7 +383,7 @@ export default function App() {
   imageAlt: `QR Code ของ ${to}`,
   showCancelButton: true,
   confirmButtonText: "ยืนยันโอนแล้ว",
-  confirmButtonColor: "#10b981",
+  confirmButtonColor: "#D7FF3B",
   cancelButtonText: "ยกเลิก",
    })
     
@@ -482,7 +482,7 @@ export default function App() {
   }, [regularExpenses, historyExpenses, perPerson]);
 
   return (
-    <div className="relative min-h-screen bg-gray-600 pb-20 font-sans">
+    <div className="relative min-h-screen bg-gray-950 pb-20 font-sans text-gray-100">
       <TripHeader
         totalExpense={totalExpense}
         perPerson={perPerson}
@@ -542,7 +542,7 @@ export default function App() {
       </main>
       <button
         onClick={() => setShowHistory(true)}
-        className="fixed bottom-6 right-6 z-40 rounded-full bg-blue-700 p-4 text-white shadow-xl transition hover:bg-blue-800"
+        className="fixed bottom-6 right-6 z-40 rounded-full bg-blue-600 p-4 text-white shadow-xl transition hover:bg-lime-300"
         title="ดูประวัติการเคลียร์เงิน"
       >
         <History size={24} />
@@ -551,7 +551,7 @@ export default function App() {
         <HistoryModal
           expenses={historyExpenses}
           onClose={() => setShowHistory(false)}
-          onUndo={handleUndoHistory} // 🧠เปลี่ยนจาก Delete เป็น Undo ให้เข้าใจตรงกัน
+          onUndo={handleUndoHistory} // เปลี่ยนจาก Delete เป็น Undo ให้เข้าใจตรงกัน
         />
       )}
     </div>
