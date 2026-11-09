@@ -3,7 +3,6 @@ import { Edit2, Receipt } from "lucide-react";
 export default function ExpenseForm({
   editId,
   date,
-  dates,
   category,
   categories,
   item,
@@ -18,6 +17,11 @@ export default function ExpenseForm({
   onSubmit,
   onCancel,
 }) {
+  //  ฟังก์ชันกดปุ่มวันนี้
+  const setToday = () => {
+    onDateChange(new Date().toLocaleDateString("en-CA"));
+  };
+
   return (
     <section
       className={`rounded-xl border p-5 shadow-sm ${
@@ -31,23 +35,29 @@ export default function ExpenseForm({
         </h2>
       </div>
       <form onSubmit={onSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-gray-500">
-            วันที่
-            <select
-              value={date}
-              onChange={(event) => onDateChange(event.target.value)}
-              className="w-full rounded-lg border bg-gray-50 p-2 text-sm"
-            >
-              {dates.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-gray-500">
-            หมวดหมู่
+        <div className="space-y-3">
+          <div className="flex flex-col">
+            <label className="mb-1 text-xs text-gray-500">วันที่</label>
+            <div className="flex gap-2">
+              {/* 🧠 เปลี่ยนเป็น input แบบปฏิทิน */}
+              <input
+                type="date"
+                value={date}
+                onChange={(event) => onDateChange(event.target.value)}
+                className="w-full rounded-lg border bg-gray-50 p-2 text-sm"
+              />
+              {/* ปุ่มเลือกวันที่ปัจจุบัน */}
+              <button
+                type="button"
+                onClick={setToday}
+                className="rounded-lg bg-blue-100 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-200 w-1/4"
+              >
+                วันนี้
+              </button>
+            </div>
+          </div>
+          <label className="flex flex-col text-xs text-gray-500">
+            <span className="mb-1">หมวดหมู่</span>
             <select
               value={category}
               onChange={(event) => onCategoryChange(event.target.value)}
@@ -68,12 +78,12 @@ export default function ExpenseForm({
             placeholder="ดึงชื่อหมวดหมู่อัตโนมัติ"
             value={item}
             onChange={(event) => onItemChange(event.target.value)}
-            className="w-full rounded-lg border p-2"
+            className="w-full mt-1 rounded-lg border p-2 text-sm"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-gray-500">
-            จำนวนเงิน (บาท)
+          <label className="flex flex-col text-xs text-gray-500">
+            <span className="mb-1">จำนวนเงิน (บาท)</span>
             <input
               type="number"
               placeholder="0.00"
@@ -82,12 +92,12 @@ export default function ExpenseForm({
               className="w-full rounded-lg border p-2 text-lg font-bold text-red-600"
             />
           </label>
-          <label className="text-xs text-gray-500">
-            คนจ่ายสำรอง
+          <label className="flex flex-col text-xs text-gray-500">
+            <span className="mb-1">คนจ่ายสำรอง</span>
             <select
               value={paidBy}
               onChange={(event) => onPaidByChange(event.target.value)}
-              className="w-full rounded-lg border bg-gray-50 p-2 font-bold text-blue-600"
+              className="w-full rounded-lg border bg-gray-50 p-2 font-bold text-blue-600 text-base"
             >
               {members.map((member) => (
                 <option key={member} value={member}>

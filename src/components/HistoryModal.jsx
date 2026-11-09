@@ -1,6 +1,6 @@
-import { History, Trash2, X } from "lucide-react";
+import { History, RotateCcw, X } from "lucide-react";
 
-export default function HistoryModal({ expenses, onClose, onDelete }) {
+export default function HistoryModal({ expenses, onClose, onUndo }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
       <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
@@ -21,7 +21,14 @@ export default function HistoryModal({ expenses, onClose, onDelete }) {
                   </div>
                   <div className="flex items-center gap-3 text-right">
                     <p className="font-bold text-green-600">฿{Number(expense.amount).toLocaleString()}</p>
-                    <button onClick={() => onDelete(expense.id)} className="text-gray-300 transition hover:text-red-500"><Trash2 size={16} /></button>
+                    {/* 🧠 เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
+                    <button 
+                      onClick={() => onUndo(expense.id)} 
+                      className="text-gray-300 transition hover:text-blue-500 flex items-center gap-1 text-xs ml-2 bg-white px-2 py-1 rounded shadow-sm border border-gray-100"
+                      title="กู้คืนรายการนี้"
+                    >
+                      <RotateCcw size={14} /> กู้คืน
+                    </button>
                   </div>
                 </div>
               ))}
