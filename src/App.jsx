@@ -23,6 +23,7 @@ const CATEGORIES = [
   "📦 อื่นๆ",
 ];
 const HISTORY_CATEGORY = "✅ ประวัติการโอน";
+const DEFAULT_MEMBERS = ["หมิว", "มาย", "เมย์", "พี่เบส"];
 const QR_IMAGES = {
   หมิว: "/Mind's QR.png",
   มาย: "/Mind's QR.png",
@@ -42,16 +43,35 @@ const parseForUI = (thDate) => {
   const [d, m, y] = thDate.split("/");
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 };
+const getStoredMembers = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("tripMembers") || "null");
+    if (Array.isArray(saved)) {
+      const members = [...new Set(saved.map((member) => String(member).trim()))].filter(Boolean);
+      if (members.length > 0) return members;
+    }
+  } catch {
+    localStorage.removeItem("tripMembers");
+  }
+  return DEFAULT_MEMBERS;
+};
+const getOfflineQueue = () => {
+  try {
+    const queue = JSON.parse(localStorage.getItem("offlineQueue") || "[]");
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    localStorage.removeItem("offlineQueue");
+    return [];
+  }
+};
 
 export default function App() {
-  const [MEMBERS, setMembers] = useState(() => {
-    const saved = localStorage.getItem("tripMembers");
-    return saved ? JSON.parse(saved) : ["หมิว", "มาย", "เมย์", "พี่เบส"];
-  });
+  const [MEMBERS, setMembers] = useState(getStoredMembers);
 
-  const [paidBy, setPaidBy] = useState(
-    () => localStorage.getItem("defaultPaidBy") || MEMBERS[0],
-  );
+  const [paidBy, setPaidBy] = useState(() => {
+    const saved = localStorage.getItem("defaultPaidBy");
+    return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0];
+  });
 
   //  อัปเกรดฟังก์ชันเพิ่มคน ให้เปลี่ยนช่องเลือกคนเป็นชื่อใหม่ทันที
   const handleAddMember = async () => {
@@ -66,8 +86,8 @@ export default function App() {
       cancelButtonText: "ยกเลิก",
     });
 
-    if (name) {
-      const trimmedName = name.trim();
+    const trimmedName = name?.trim();
+    if (trimmedName) {
       if (!MEMBERS.includes(trimmedName)) {
         const newMembers = [...MEMBERS, trimmedName];
         setMembers(newMembers);
@@ -81,6 +101,13 @@ export default function App() {
   };
 
   const handleRemoveMember = (name) => {
+    if (MEMBERS.length <= 1) {
+      return Swal.fire({
+        icon: "warning",
+        title: "ลบไม่ได้",
+        text: "ต้องมีสมาชิกอย่างน้อย 1 คน",
+      });
+    }
     const memberData = settlements.balances.find((b) => b.member === name);
     if (memberData && Math.abs(memberData.balance) > 0.01) {
       return Swal.fire({
@@ -92,6 +119,10 @@ export default function App() {
     const newMembers = MEMBERS.filter((m) => m !== name);
     setMembers(newMembers);
     localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+    if (paidBy === name) {
+      setPaidBy(newMembers[0]);
+      localStorage.setItem("defaultPaidBy", newMembers[0]);
+    }
     Swal.fire({
       icon: "success",
       title: "ลบสมาชิกสำเร็จ",
@@ -123,12 +154,14 @@ export default function App() {
 
   const refreshExpenses = useCallback(async () => {
     setIsSyncing(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("trip_expenses")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (data) {
+    if (error) {
+      Swal.fire({ icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
+    } else if (data) {
       setExpenses(data);
       const latestOdo = data.find((ex) => ex.odometer_end !== null);
       if (latestOdo && !editId) setOdoStart(latestOdo.odometer_end.toString());
@@ -139,13 +172,15 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     const loadInitialData = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("trip_expenses")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (isMounted) {
-        if (data) {
+        if (error) {
+          Swal.fire({ icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
+        } else if (data) {
           setExpenses(data);
           const latestOdo = data.find((ex) => ex.odometer_end !== null);
           if (latestOdo && !editId)
@@ -158,10 +193,14 @@ export default function App() {
     loadInitialData();
 
     const syncOfflineQueue = async () => {
-      const queue = JSON.parse(localStorage.getItem("offlineQueue") || "[]");
+      const queue = getOfflineQueue();
       if (queue.length > 0) {
-        const payloads = queue.map(({ tempId: _tempId, ...rest }) => rest);
-        await supabase.from("trip_expenses").insert(payloads);
+        const payloads = queue.map(({ id: _id, tempId: _tempId, ...rest }) => rest);
+        const { error } = await supabase.from("trip_expenses").insert(payloads);
+        if (error) {
+          Swal.fire({ icon: "error", title: "ซิงก์ข้อมูลไม่สำเร็จ", text: error.message });
+          return;
+        }
         localStorage.removeItem("offlineQueue");
         await refreshExpenses();
         Swal.fire({
@@ -200,7 +239,8 @@ export default function App() {
 
   const handleAddExpense = async (event) => {
     event.preventDefault();
-    if (!amount)
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0)
       return Swal.fire({
         icon: "warning",
         title: "เตือน",
@@ -209,12 +249,19 @@ export default function App() {
     const payload = {
       expense_date: formatForDB(date),
       item_name: item.trim() || category,
-      amount: parseFloat(amount),
+      amount: numericAmount,
       category,
       paid_by: paidBy,
     };
     if (!navigator.onLine) {
-      const queue = JSON.parse(localStorage.getItem("offlineQueue") || "[]");
+      if (editId) {
+        return Swal.fire({
+          icon: "warning",
+          title: "แก้ไขขณะออฟไลน์ไม่ได้",
+          text: "เชื่อมต่ออินเทอร์เน็ตก่อน แล้วค่อยบันทึกการแก้ไข",
+        });
+      }
+      const queue = getOfflineQueue();
       const tempItem = { ...payload, id: `temp-${Date.now()}`, tempId: true };
       localStorage.setItem(
         "offlineQueue",
@@ -228,7 +275,8 @@ export default function App() {
       });
     } else {
       if (editId) {
-        await supabase.from("trip_expenses").update(payload).eq("id", editId);
+        const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
+        if (error) return Swal.fire({ icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message });
         Swal.fire({
           icon: "success",
           title: "สำเร็จ",
@@ -238,7 +286,8 @@ export default function App() {
         });
         setEditId(null);
       } else {
-        await supabase.from("trip_expenses").insert([payload]);
+        const { error } = await supabase.from("trip_expenses").insert([payload]);
+        if (error) return Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
         Swal.fire({
           icon: "success",
           title: "สำเร็จ",
@@ -258,7 +307,7 @@ export default function App() {
     setDate(parseForUI(expense.expense_date));
     setPaidBy(expense.paid_by);
 
-    if (expense.category === "⛽ ค่าน้ำมัน" && expense.odometer_start) {
+    if (expense.category === "⛽ ค่าน้ำมัน" && expense.odometer_start != null && expense.odometer_end != null) {
       setOdoStart(expense.odometer_start.toString());
       setOdoEnd(expense.odometer_end.toString());
       window.scrollTo({ top: 400, behavior: "smooth" });
@@ -274,10 +323,23 @@ export default function App() {
     setEditId(null);
     setItem("");
     setAmount("");
+    setOdoEnd("");
   };
 
   const handleAddGas = async () => {
-    if (!odoStart || !odoEnd || !gasPrice || !gasRate)
+    const start = Number(odoStart);
+    const end = Number(odoEnd);
+    const price = Number(gasPrice);
+    const rate = Number(gasRate);
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      !Number.isFinite(price) ||
+      !Number.isFinite(rate) ||
+      end <= start ||
+      price <= 0 ||
+      rate <= 0
+    )
       return Swal.fire({
         icon: "warning",
         title: "เตือน",
@@ -290,15 +352,21 @@ export default function App() {
       expense_date: formatForDB(date),
       item_name: `ค่าน้ำมัน (ไมล์ ${odoStart}-${odoEnd})`,
       amount:
-        ((parseFloat(odoEnd) - parseFloat(odoStart)) / parseFloat(gasRate)) *
-        parseFloat(gasPrice),
+        ((end - start) / rate) * price,
       category: "⛽ ค่าน้ำมัน",
       paid_by: paidBy,
-      odometer_start: parseFloat(odoStart),
-      odometer_end: parseFloat(odoEnd),
+      odometer_start: start,
+      odometer_end: end,
     };
     if (!navigator.onLine) {
-      const queue = JSON.parse(localStorage.getItem("offlineQueue") || "[]");
+      if (editId) {
+        return Swal.fire({
+          icon: "warning",
+          title: "แก้ไขขณะออฟไลน์ไม่ได้",
+          text: "เชื่อมต่ออินเทอร์เน็ตก่อน แล้วค่อยบันทึกการแก้ไข",
+        });
+      }
+      const queue = getOfflineQueue();
       const tempItem = { ...payload, id: `temp-${Date.now()}`, tempId: true };
       localStorage.setItem(
         "offlineQueue",
@@ -312,10 +380,12 @@ export default function App() {
       });
     } else {
       if (editId) {
-        await supabase.from("trip_expenses").update(payload).eq("id", editId);
+        const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
+        if (error) return Swal.fire({ icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message });
         setEditId(null);
       } else {
-        await supabase.from("trip_expenses").insert([payload]);
+        const { error } = await supabase.from("trip_expenses").insert([payload]);
+        if (error) return Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
       }
       await refreshExpenses();
       Swal.fire({
@@ -326,7 +396,7 @@ export default function App() {
         showConfirmButton: false,
       });
     }
-    setOdoStart(odoEnd);
+    setOdoStart(String(end));
     setOdoEnd("");
   };
 
@@ -346,7 +416,8 @@ export default function App() {
       confirmButtonText: "ลบเลย!",
     });
     if (result.isConfirmed) {
-      await supabase.from("trip_expenses").delete().eq("id", id);
+      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+      if (error) return Swal.fire({ icon: "error", title: "ลบไม่สำเร็จ", text: error.message });
       await refreshExpenses();
       Swal.fire({
         icon: "success",
@@ -368,7 +439,8 @@ export default function App() {
       confirmButtonText: "ใช่, กู้คืนเลย!",
     });
     if (result.isConfirmed) {
-      await supabase.from("trip_expenses").delete().eq("id", id);
+      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+      if (error) return Swal.fire({ icon: "error", title: "กู้คืนไม่สำเร็จ", text: error.message });
       await refreshExpenses();
       Swal.fire({
         icon: "success",
@@ -408,7 +480,7 @@ export default function App() {
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
 
-    await supabase.from("trip_expenses").insert([
+    const { error } = await supabase.from("trip_expenses").insert([
       {
         expense_date: formattedDate,
         item_name: `[เคลียร์ยอด] ${from} -> ${to}`,
@@ -417,6 +489,7 @@ export default function App() {
         paid_by: from,
       },
     ]);
+    if (error) return Swal.fire({ icon: "error", title: "บันทึกการโอนไม่สำเร็จ", text: error.message });
     await refreshExpenses();
     Swal.fire({
       icon: "success",
@@ -446,11 +519,13 @@ export default function App() {
       regularExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0),
     [regularExpenses],
   );
-  const perPerson = totalExpense / MEMBERS.length;
+  const perPerson = MEMBERS.length > 0 ? totalExpense / MEMBERS.length : 0;
   const previewGasCost =
-    odoStart && odoEnd && gasPrice && gasRate
-      ? ((parseFloat(odoEnd) - parseFloat(odoStart)) / parseFloat(gasRate)) *
-        parseFloat(gasPrice)
+    Number.isFinite(Number(odoStart)) &&
+    Number.isFinite(Number(odoEnd)) &&
+    Number.isFinite(Number(gasPrice)) &&
+    Number(gasRate) > 0
+      ? ((Number(odoEnd) - Number(odoStart)) / Number(gasRate)) * Number(gasPrice)
       : 0;
   const settlements = useMemo(() => {
     const balances = MEMBERS.map((member) => {
@@ -493,7 +568,7 @@ export default function App() {
       if (creditor.balance < 0.01) creditorIndex++;
     }
     return { balances, transfers };
-  }, [regularExpenses, historyExpenses, perPerson]);
+  }, [MEMBERS, regularExpenses, historyExpenses, perPerson]);
 
   return (
     <div className="relative min-h-screen bg-black pb-20 font-sans text-gray-100">
