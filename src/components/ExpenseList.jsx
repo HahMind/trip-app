@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useState, useRef } from "react";
 
-// 🧠 Component ย่อยสำหรับแต่ละรายการ
+//  Component ย่อยสำหรับแต่ละรายการ
 function ExpenseItem({
   expense,
   swipedId,
@@ -32,7 +32,7 @@ function ExpenseItem({
 
   const isOpen = swipedId === expense.id;
 
-  // 🧠 ปรับระยะดึงให้พอดีกับปุ่มวงกลม (ปุ่มวงกลมใช้พื้นที่ประมาณ 60px)
+  // ปรับระยะดึงให้พอดีกับปุ่มวงกลม (ปุ่มวงกลมใช้พื้นที่ประมาณ 60px)
   let currentOffset = isOpen ? -70 : 0;
   if (drag.active) {
     currentOffset = (isOpen ? -70 : 0) + drag.offset;
@@ -69,7 +69,7 @@ function ExpenseItem({
   const endDrag = () => {
     if (!drag.active) return;
     if (!drag.scrolling) {
-      // 🧠 ถ้าดึงเกิน -35 ให้ถือว่าเปิด
+      // ถ้าดึงเกิน -35 ให้ถือว่าเปิด
       if (currentOffset < -35) setSwipedId(expense.id);
       else setSwipedId(null);
     }
@@ -94,22 +94,22 @@ function ExpenseItem({
             onDelete(expense.id);
             setSwipedId(null);
           }}
-          // 🧠 กำหนดให้ปุ่มเป็นวงกลม (h-11 w-11 rounded-full)
+          //  กำหนดให้ปุ่มเป็นวงกลม (h-11 w-11 rounded-full)
           className="flex h-13 w-13 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
           style={{
             // ถ้ายังดึงไม่ถึงระยะ ให้ซ่อนปุ่มไว้ก่อน (opacity) และให้มันค่อยๆ ขยายตัวโผล่มา (scale)
             opacity: currentOffset < -20 ? 1 : 0,
-            transform: `scale(${currentOffset < -40 ? 1 : 0.5})`,
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
             transition: drag.active ? "none" : "all 0.25s ease-out",
           }}
         >
-          <Trash2 size={25} />
+          <Trash2 size={22} />
         </button>
       </div>
 
       {/* 📱 เลเยอร์การ์ดสีเทาหลัก */}
       <div
-        className="relative z-10 flex cursor-grab touch-pan-y items-center justify-between bg-gray-800 p-3 pl-8 active:cursor-grabbing"
+        className={` relative z-10 flex cursor-grab touch-pan-y items-center justify-between  p-3 pl-8 active:cursor-grabbing ${isOpen || drag.active ? "bg-gray-700" : "bg-gray-800"}  `}
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,
           transition: drag.active ? "none" : "all 0.25s ease-out",
@@ -224,7 +224,7 @@ export default function ExpenseList({
             >
               <button
                 onClick={() => onToggleDate(date)}
-                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600 relative z-20"
+                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-600 p-3 hover:bg-gray-600 relative z-20"
               >
                 <div className="flex items-center gap-2 font-bold text-gray-100">
                   {collapsedDates[date] ? (
@@ -244,8 +244,10 @@ export default function ExpenseList({
                 )}
               </button>
 
-              {!collapsedDates[date] && (
-                <div className="bg-gray-900">
+              <div
+                className={`grid transition-all duration-400 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr]" : "grid-rows-[1fr] opacity-100"}`}
+              >
+                <div className="overflow-hidden bg-gray-900">
                   {groupedExpenses[date].map((expense, index) => (
                     <ExpenseItem
                       key={expense.id}
@@ -259,7 +261,7 @@ export default function ExpenseList({
                     />
                   ))}
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>
