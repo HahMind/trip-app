@@ -87,7 +87,7 @@ function ExpenseItem({
     <div
       className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
     >
-      {/* 🗑️ กล่องปุ่ม Delete "วงกลม" สีแดง ลอยอยู่ขวาสุด */}
+      {/* กล่องปุ่ม Delete "วงกลม" สีแดง ลอยอยู่ขวาสุด */}
       <div className="absolute inset-y-0 right-3 flex items-center justify-center">
         <button
           onClick={() => {
@@ -99,7 +99,7 @@ function ExpenseItem({
           style={{
             // ถ้ายังดึงไม่ถึงระยะ ให้ซ่อนปุ่มไว้ก่อน (opacity) และให้มันค่อยๆ ขยายตัวโผล่มา (scale)
             opacity: currentOffset < -20 ? 1 : 0,
-            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transform: `scale(${Math.min(1.08, 0.2 + (-currentOffset / 70) * 0.8)})`,
             transition: drag.active ? "none" : "all 0.25s ease-out",
           }}
         >
