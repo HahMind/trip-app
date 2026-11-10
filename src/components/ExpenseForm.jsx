@@ -14,7 +14,7 @@ export default function ExpenseForm({
   onItemChange,
   onAmountChange,
   onPaidByChange,
-  onAddMember, // 🧠 รับ prop ใหม่เข้ามา
+  onAddMember, 
   onSubmit,
   onCancel,
 }) {

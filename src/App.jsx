@@ -47,7 +47,9 @@ const getStoredMembers = () => {
   try {
     const saved = JSON.parse(localStorage.getItem("tripMembers") || "null");
     if (Array.isArray(saved)) {
-      const members = [...new Set(saved.map((member) => String(member).trim()))].filter(Boolean);
+      const members = [
+        ...new Set(saved.map((member) => String(member).trim())),
+      ].filter(Boolean);
       if (members.length > 0) return members;
     }
   } catch {
@@ -82,8 +84,16 @@ export default function App() {
       inputPlaceholder: "กรอกชื่อ",
       showCancelButton: true,
       confirmButtonText: "บันทึก",
-      confirmButtonColor: "#D7FF3B",
       cancelButtonText: "ยกเลิก",
+      background: "#111827",
+      color: "#F3F4F6",
+      customClass: {
+        popup: "!w-10/12 rounded-xl border border-gray-700",
+        title: "!text-gray-100",
+        input: "!border-gray-700 !bg-gray-800 !text-gray-100 !outline-none !shadow-none focus:!border-lime-400 focus:!outline-none focus:!ring-0 focus:!shadow-none",
+        confirmButton: "!rounded-lg !bg-lime-400 !font-bold !text-gray-950",
+        cancelButton: "!rounded-lg !bg-gray-700 !font-bold !text-gray-100",
+      },
     });
 
     const trimmedName = name?.trim();
@@ -160,7 +170,11 @@ export default function App() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      Swal.fire({ icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
+      Swal.fire({
+        icon: "error",
+        title: "โหลดข้อมูลไม่สำเร็จ",
+        text: error.message,
+      });
     } else if (data) {
       setExpenses(data);
       const latestOdo = data.find((ex) => ex.odometer_end !== null);
@@ -179,7 +193,11 @@ export default function App() {
 
       if (isMounted) {
         if (error) {
-          Swal.fire({ icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
+          Swal.fire({
+            icon: "error",
+            title: "โหลดข้อมูลไม่สำเร็จ",
+            text: error.message,
+          });
         } else if (data) {
           setExpenses(data);
           const latestOdo = data.find((ex) => ex.odometer_end !== null);
@@ -195,10 +213,16 @@ export default function App() {
     const syncOfflineQueue = async () => {
       const queue = getOfflineQueue();
       if (queue.length > 0) {
-        const payloads = queue.map(({ id: _id, tempId: _tempId, ...rest }) => rest);
+        const payloads = queue.map(
+          ({ id: _id, tempId: _tempId, ...rest }) => rest,
+        );
         const { error } = await supabase.from("trip_expenses").insert(payloads);
         if (error) {
-          Swal.fire({ icon: "error", title: "ซิงก์ข้อมูลไม่สำเร็จ", text: error.message });
+          Swal.fire({
+            icon: "error",
+            title: "ซิงก์ข้อมูลไม่สำเร็จ",
+            text: error.message,
+          });
           return;
         }
         localStorage.removeItem("offlineQueue");
@@ -275,8 +299,16 @@ export default function App() {
       });
     } else {
       if (editId) {
-        const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
-        if (error) return Swal.fire({ icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message });
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "แก้ไขไม่สำเร็จ",
+            text: error.message,
+          });
         Swal.fire({
           icon: "success",
           title: "สำเร็จ",
@@ -286,8 +318,15 @@ export default function App() {
         });
         setEditId(null);
       } else {
-        const { error } = await supabase.from("trip_expenses").insert([payload]);
-        if (error) return Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
+        const { error } = await supabase
+          .from("trip_expenses")
+          .insert([payload]);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "บันทึกไม่สำเร็จ",
+            text: error.message,
+          });
         Swal.fire({
           icon: "success",
           title: "สำเร็จ",
@@ -307,7 +346,11 @@ export default function App() {
     setDate(parseForUI(expense.expense_date));
     setPaidBy(expense.paid_by);
 
-    if (expense.category === "⛽ ค่าน้ำมัน" && expense.odometer_start != null && expense.odometer_end != null) {
+    if (
+      expense.category === "⛽ ค่าน้ำมัน" &&
+      expense.odometer_start != null &&
+      expense.odometer_end != null
+    ) {
       setOdoStart(expense.odometer_start.toString());
       setOdoEnd(expense.odometer_end.toString());
       window.scrollTo({ top: 400, behavior: "smooth" });
@@ -351,8 +394,7 @@ export default function App() {
     const payload = {
       expense_date: formatForDB(date),
       item_name: `ค่าน้ำมัน (ไมล์ ${odoStart}-${odoEnd})`,
-      amount:
-        ((end - start) / rate) * price,
+      amount: ((end - start) / rate) * price,
       category: "⛽ ค่าน้ำมัน",
       paid_by: paidBy,
       odometer_start: start,
@@ -380,12 +422,27 @@ export default function App() {
       });
     } else {
       if (editId) {
-        const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
-        if (error) return Swal.fire({ icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message });
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "แก้ไขไม่สำเร็จ",
+            text: error.message,
+          });
         setEditId(null);
       } else {
-        const { error } = await supabase.from("trip_expenses").insert([payload]);
-        if (error) return Swal.fire({ icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
+        const { error } = await supabase
+          .from("trip_expenses")
+          .insert([payload]);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "บันทึกไม่สำเร็จ",
+            text: error.message,
+          });
       }
       await refreshExpenses();
       Swal.fire({
@@ -416,8 +473,16 @@ export default function App() {
       confirmButtonText: "ลบเลย!",
     });
     if (result.isConfirmed) {
-      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
-      if (error) return Swal.fire({ icon: "error", title: "ลบไม่สำเร็จ", text: error.message });
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error)
+        return Swal.fire({
+          icon: "error",
+          title: "ลบไม่สำเร็จ",
+          text: error.message,
+        });
       await refreshExpenses();
       Swal.fire({
         icon: "success",
@@ -439,8 +504,16 @@ export default function App() {
       confirmButtonText: "ใช่, กู้คืนเลย!",
     });
     if (result.isConfirmed) {
-      const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
-      if (error) return Swal.fire({ icon: "error", title: "กู้คืนไม่สำเร็จ", text: error.message });
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error)
+        return Swal.fire({
+          icon: "error",
+          title: "กู้คืนไม่สำเร็จ",
+          text: error.message,
+        });
       await refreshExpenses();
       Swal.fire({
         icon: "success",
@@ -489,7 +562,12 @@ export default function App() {
         paid_by: from,
       },
     ]);
-    if (error) return Swal.fire({ icon: "error", title: "บันทึกการโอนไม่สำเร็จ", text: error.message });
+    if (error)
+      return Swal.fire({
+        icon: "error",
+        title: "บันทึกการโอนไม่สำเร็จ",
+        text: error.message,
+      });
     await refreshExpenses();
     Swal.fire({
       icon: "success",
@@ -525,7 +603,8 @@ export default function App() {
     Number.isFinite(Number(odoEnd)) &&
     Number.isFinite(Number(gasPrice)) &&
     Number(gasRate) > 0
-      ? ((Number(odoEnd) - Number(odoStart)) / Number(gasRate)) * Number(gasPrice)
+      ? ((Number(odoEnd) - Number(odoStart)) / Number(gasRate)) *
+        Number(gasPrice)
       : 0;
   const settlements = useMemo(() => {
     const balances = MEMBERS.map((member) => {
@@ -580,7 +659,6 @@ export default function App() {
         MEMBERS={MEMBERS}
       />
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* 🧠 โยน onAddMember ลงไปใน ExpenseForm */}
         <ExpenseForm
           editId={editId}
           date={date}
@@ -613,7 +691,6 @@ export default function App() {
           onEdit={handleEdit}
           onDelete={handleDelete}
         />
-        {/* 🧠 เอา handleAddMember ออกจาก SettlementCard แล้ว */}
         <SettlementCard
           settlements={settlements}
           handleRemoveMember={handleRemoveMember}
