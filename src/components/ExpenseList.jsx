@@ -224,7 +224,7 @@ export default function ExpenseList({
             >
               <button
                 onClick={() => onToggleDate(date)}
-                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600 relative z-20"
+                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-600 p-3 hover:bg-gray-600 relative z-20"
               >
                 <div className="flex items-center gap-2 font-bold text-gray-100">
                   {collapsedDates[date] ? (
