@@ -1,0 +1,1486 @@
+VERSION 1.0.0
+
+
+===== src/App.jsx =====
+
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+import Swal from "sweetalert2";
+import { History } from "lucide-react";
+import ExpenseForm from "./components/ExpenseForm";
+import ExpenseList from "./components/ExpenseList";
+import GasForm from "./components/GasForm";
+import HistoryModal from "./components/HistoryModal";
+import SettlementCard from "./components/SettlementCard";
+import TripHeader from "./components/TripHeader";
+
+const supabase = createClient(
+  "https://ovphjcceaxajshgzyvaz.supabase.co",
+  "sb_publishable_2akfx9awEyywfq5Q0ZpLWA_iQGY9gzD",
+);
+
+const CATEGORIES = [
+  "🍲 ค่าอาหาร",
+  "🚗 ค่ารถ",
+  "⛽ ค่าน้ำมัน",
+  "🏠 ค่าที่พัก",
+  "🎟️ ค่าเที่ยว",
+  "📦 อื่นๆ",
+];
+const HISTORY_CATEGORY = "✅ ประวัติการโอน";
+const DEFAULT_MEMBERS = ["หมิว", "มาย", "เมย์", "พี่เบส"];
+const QR_IMAGES = {
+  หมิว: "/Mind's QR.png",
+  มาย: "/Mind's QR.png",
+  เมย์: "/Mind's QR.png",
+  พี่เบส: "/Mind's QR.png",
+};
+
+//  Helper จัดการวันที่
+const getTodayISO = () => new Date().toLocaleDateString("en-CA");
+const formatForDB = (isoDate) => {
+  if (!isoDate || !isoDate.includes("-")) return isoDate;
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+};
+const parseForUI = (thDate) => {
+  if (!thDate || !thDate.includes("/")) return getTodayISO();
+  const [d, m, y] = thDate.split("/");
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+};
+const getStoredMembers = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("tripMembers") || "null");
+    if (Array.isArray(saved)) {
+      const members = [
+        ...new Set(saved.map((member) => String(member).trim())),
+      ].filter(Boolean);
+      if (members.length > 0) return members;
+    }
+  } catch {
+    localStorage.removeItem("tripMembers");
+  }
+  return DEFAULT_MEMBERS;
+};
+const getOfflineQueue = () => {
+  try {
+    const queue = JSON.parse(localStorage.getItem("offlineQueue") || "[]");
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    localStorage.removeItem("offlineQueue");
+    return [];
+  }
+};
+
+export default function App() {
+  const [MEMBERS, setMembers] = useState(getStoredMembers);
+
+  const [paidBy, setPaidBy] = useState(() => {
+    const saved = localStorage.getItem("defaultPaidBy");
+    return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0];
+  });
+
+  //  อัปเกรดฟังก์ชันเพิ่มคน ให้เปลี่ยนช่องเลือกคนเป็นชื่อใหม่ทันที
+  const handleAddMember = async () => {
+    const { value: name } = await Swal.fire({
+      title: "เพิ่มสมาชิกใหม่",
+      input: "text",
+      inputLabel: "ชื่อสมาชิก",
+      inputPlaceholder: "กรอกชื่อ",
+      showCancelButton: true,
+      confirmButtonText: "บันทึก",
+      cancelButtonText: "ยกเลิก",
+      background: "#111827",
+      color: "#F3F4F6",
+      customClass: {
+        popup: "!w-10/12 rounded-xl border border-gray-700",
+        title: "!text-gray-100",
+        input: "!border-gray-700 !bg-gray-800 !text-gray-100 !outline-none !shadow-none focus:!border-lime-400 focus:!outline-none focus:!ring-0 focus:!shadow-none",
+        confirmButton: "!rounded-lg !bg-lime-400 !font-bold !text-gray-950",
+        cancelButton: "!rounded-lg !bg-gray-700 !font-bold !text-gray-100",
+      },
+    });
+
+    const trimmedName = name?.trim();
+    if (trimmedName) {
+      if (!MEMBERS.includes(trimmedName)) {
+        const newMembers = [...MEMBERS, trimmedName];
+        setMembers(newMembers);
+        localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+        setPaidBy(trimmedName);
+        localStorage.setItem("defaultPaidBy", trimmedName);
+      } else {
+        setPaidBy(trimmedName);
+      }
+    }
+  };
+
+  const handleRemoveMember = (name) => {
+    if (MEMBERS.length <= 1) {
+      return Swal.fire({
+        icon: "warning",
+        title: "ลบไม่ได้",
+        text: "ต้องมีสมาชิกอย่างน้อย 1 คน",
+      });
+    }
+    const memberData = settlements.balances.find((b) => b.member === name);
+    if (memberData && Math.abs(memberData.balance) > 0.01) {
+      return Swal.fire({
+        icon: "error",
+        title: "ลบไม่ได้จ่ะ No No",
+        text: `${name} มียอดค้างชำระอยู่`,
+      });
+    }
+    const newMembers = MEMBERS.filter((m) => m !== name);
+    setMembers(newMembers);
+    localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+    if (paidBy === name) {
+      setPaidBy(newMembers[0]);
+      localStorage.setItem("defaultPaidBy", newMembers[0]);
+    }
+    Swal.fire({
+      icon: "success",
+      title: "ลบสมาชิกสำเร็จ",
+      timer: 1000,
+      showConfirmButton: false,
+    });
+  };
+
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isListExpanded, setIsListExpanded] = useState(false);
+  const [collapsedDates, setCollapsedDates] = useState({});
+  const [showHistory, setShowHistory] = useState(false);
+  const [editId, setEditId] = useState(null);
+
+  const [date, setDate] = useState(getTodayISO());
+  const [item, setItem] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [odoStart, setOdoStart] = useState("");
+  const [odoEnd, setOdoEnd] = useState("");
+  const [gasPrice, setGasPrice] = useState(
+    () => localStorage.getItem("defaultGasPrice") || "",
+  );
+  const [gasRate, setGasRate] = useState(
+    () => localStorage.getItem("defaultGasRate") || "11",
+  );
+
+  const refreshExpenses = useCallback(async () => {
+    setIsSyncing(true);
+    const { data, error } = await supabase
+      .from("trip_expenses")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      Swal.fire({
+        icon: "error",
+        title: "โหลดข้อมูลไม่สำเร็จ",
+        text: error.message,
+      });
+    } else if (data) {
+      setExpenses(data);
+      const latestOdo = data.find((ex) => ex.odometer_end !== null);
+      if (latestOdo && !editId) setOdoStart(latestOdo.odometer_end.toString());
+    }
+    setTimeout(() => setIsSyncing(false), 500);
+  }, [editId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadInitialData = async () => {
+      const { data, error } = await supabase
+        .from("trip_expenses")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (isMounted) {
+        if (error) {
+          Swal.fire({
+            icon: "error",
+            title: "โหลดข้อมูลไม่สำเร็จ",
+            text: error.message,
+          });
+        } else if (data) {
+          setExpenses(data);
+          const latestOdo = data.find((ex) => ex.odometer_end !== null);
+          if (latestOdo && !editId)
+            setOdoStart(latestOdo.odometer_end.toString());
+        }
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+
+    const syncOfflineQueue = async () => {
+      const queue = getOfflineQueue();
+      if (queue.length > 0) {
+        const payloads = queue.map(
+          ({ id: _id, tempId: _tempId, ...rest }) => rest,
+        );
+        const { error } = await supabase.from("trip_expenses").insert(payloads);
+        if (error) {
+          Swal.fire({
+            icon: "error",
+            title: "ซิงก์ข้อมูลไม่สำเร็จ",
+            text: error.message,
+          });
+          return;
+        }
+        localStorage.removeItem("offlineQueue");
+        await refreshExpenses();
+        Swal.fire({
+          icon: "success",
+          title: "ออนไลน์แล้ว!",
+          text: "ข้อมูลที่ค้างไว้ถูกซิงก์ขึ้นระบบเรียบร้อย",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    };
+    window.addEventListener("online", syncOfflineQueue);
+
+    const subscription = supabase
+      .channel("trip_expenses_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "trip_expenses" },
+        () => {
+          refreshExpenses();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(subscription);
+      window.removeEventListener("online", syncOfflineQueue);
+    };
+  }, [editId, refreshExpenses]);
+
+  const handlePaidByChange = (name) => {
+    setPaidBy(name);
+    localStorage.setItem("defaultPaidBy", name);
+  };
+
+  const handleAddExpense = async (event) => {
+    event.preventDefault();
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0)
+      return Swal.fire({
+        icon: "warning",
+        title: "เตือน",
+        text: "กรุณากรอกจำนวนเงิน",
+      });
+    const payload = {
+      expense_date: formatForDB(date),
+      item_name: item.trim() || category,
+      amount: numericAmount,
+      category,
+      paid_by: paidBy,
+    };
+    if (!navigator.onLine) {
+      if (editId) {
+        return Swal.fire({
+          icon: "warning",
+          title: "แก้ไขขณะออฟไลน์ไม่ได้",
+          text: "เชื่อมต่ออินเทอร์เน็ตก่อน แล้วค่อยบันทึกการแก้ไข",
+        });
+      }
+      const queue = getOfflineQueue();
+      const tempItem = { ...payload, id: `temp-${Date.now()}`, tempId: true };
+      localStorage.setItem(
+        "offlineQueue",
+        JSON.stringify([...queue, tempItem]),
+      );
+      setExpenses((current) => [tempItem, ...current]);
+      await Swal.fire({
+        icon: "info",
+        title: "ออฟไลน์",
+        text: "บันทึกลงเครื่องแล้ว จะแอบซิงก์เมื่อเน็ตกลับมา",
+      });
+    } else {
+      if (editId) {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "แก้ไขไม่สำเร็จ",
+            text: error.message,
+          });
+        Swal.fire({
+          icon: "success",
+          title: "สำเร็จ",
+          text: "แก้ไขรายการเรียบร้อย",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        setEditId(null);
+      } else {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .insert([payload]);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "บันทึกไม่สำเร็จ",
+            text: error.message,
+          });
+        Swal.fire({
+          icon: "success",
+          title: "สำเร็จ",
+          text: "บันทึกรายการเรียบร้อย",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+      await refreshExpenses();
+    }
+    setItem("");
+    setAmount("");
+  };
+
+  const handleEdit = (expense) => {
+    setEditId(expense.id);
+    setDate(parseForUI(expense.expense_date));
+    setPaidBy(expense.paid_by);
+
+    if (
+      expense.category === "⛽ ค่าน้ำมัน" &&
+      expense.odometer_start != null &&
+      expense.odometer_end != null
+    ) {
+      setOdoStart(expense.odometer_start.toString());
+      setOdoEnd(expense.odometer_end.toString());
+      window.scrollTo({ top: 400, behavior: "smooth" });
+    } else {
+      setItem(expense.item_name);
+      setAmount(expense.amount);
+      setCategory(expense.category);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setItem("");
+    setAmount("");
+    setOdoEnd("");
+  };
+
+  const handleAddGas = async () => {
+    const start = Number(odoStart);
+    const end = Number(odoEnd);
+    const price = Number(gasPrice);
+    const rate = Number(gasRate);
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      !Number.isFinite(price) ||
+      !Number.isFinite(rate) ||
+      end <= start ||
+      price <= 0 ||
+      rate <= 0
+    )
+      return Swal.fire({
+        icon: "warning",
+        title: "เตือน",
+        text: "กรอกข้อมูลให้ครบ",
+      });
+    localStorage.setItem("defaultGasPrice", gasPrice);
+    localStorage.setItem("defaultGasRate", gasRate);
+
+    const payload = {
+      expense_date: formatForDB(date),
+      item_name: `ค่าน้ำมัน (ไมล์ ${odoStart}-${odoEnd})`,
+      amount: ((end - start) / rate) * price,
+      category: "⛽ ค่าน้ำมัน",
+      paid_by: paidBy,
+      odometer_start: start,
+      odometer_end: end,
+    };
+    if (!navigator.onLine) {
+      if (editId) {
+        return Swal.fire({
+          icon: "warning",
+          title: "แก้ไขขณะออฟไลน์ไม่ได้",
+          text: "เชื่อมต่ออินเทอร์เน็ตก่อน แล้วค่อยบันทึกการแก้ไข",
+        });
+      }
+      const queue = getOfflineQueue();
+      const tempItem = { ...payload, id: `temp-${Date.now()}`, tempId: true };
+      localStorage.setItem(
+        "offlineQueue",
+        JSON.stringify([...queue, tempItem]),
+      );
+      setExpenses((current) => [tempItem, ...current]);
+      Swal.fire({
+        icon: "info",
+        title: "ออฟไลน์",
+        text: "บันทึกลงเครื่องแล้ว",
+      });
+    } else {
+      if (editId) {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "แก้ไขไม่สำเร็จ",
+            text: error.message,
+          });
+        setEditId(null);
+      } else {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .insert([payload]);
+        if (error)
+          return Swal.fire({
+            icon: "error",
+            title: "บันทึกไม่สำเร็จ",
+            text: error.message,
+          });
+      }
+      await refreshExpenses();
+      Swal.fire({
+        icon: "success",
+        title: "สำเร็จ",
+        text: "บันทึกค่าน้ำมันเรียบร้อย",
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    }
+    setOdoStart(String(end));
+    setOdoEnd("");
+  };
+
+  const handleDelete = async (id) => {
+    if (id.toString().startsWith("temp"))
+      return Swal.fire({
+        icon: "error",
+        title: "ออฟไลน์",
+        text: "ไม่สามารถลบรายการค้างซิงก์ได้ รอเน็ตกลับมาก่อนนะครับ",
+      });
+    const result = await Swal.fire({
+      title: "ลบรายการนี้?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonText: "ลบเลย!",
+    });
+    if (result.isConfirmed) {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error)
+        return Swal.fire({
+          icon: "error",
+          title: "ลบไม่สำเร็จ",
+          text: error.message,
+        });
+      await refreshExpenses();
+      Swal.fire({
+        icon: "success",
+        title: "ลบแล้ว",
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    }
+  };
+
+  const handleUndoHistory = async (id) => {
+    const result = await Swal.fire({
+      title: "กู้คืนยอดนี้?",
+      text: "ยอดหนี้จะกลับไปเป็นสถานะ 'ยังไม่เคลียร์' เหมือนเดิม",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#D7FF3B",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonText: "ใช่, กู้คืนเลย!",
+    });
+    if (result.isConfirmed) {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error)
+        return Swal.fire({
+          icon: "error",
+          title: "กู้คืนไม่สำเร็จ",
+          text: error.message,
+        });
+      await refreshExpenses();
+      Swal.fire({
+        icon: "success",
+        title: "กู้คืนเรียบร้อย",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    }
+  };
+
+  const handleSettleDebt = async (from, to, settleAmount) => {
+    if (!navigator.onLine)
+      return Swal.fire({
+        icon: "error",
+        title: "ออฟไลน์",
+        text: "เน็ตหลุดจ้า",
+      });
+
+    const qrUrl =
+      QR_IMAGES[to] || "https://placehold.co/250x250?text=No+QR+Code";
+
+    const result = await Swal.fire({
+      title: `โอนเงินให้ ${to}`,
+      text: `ยอดเงิน ฿${settleAmount.toLocaleString()}`,
+      imageUrl: qrUrl,
+      imageWidth: 250,
+      imageHeight: 250,
+      imageAlt: `QR Code ของ ${to}`,
+      showCancelButton: true,
+      confirmButtonText: "ยืนยันโอนแล้ว",
+      confirmButtonColor: "#D7FF3B",
+      cancelButtonText: "ยกเลิก",
+    });
+
+    if (!result.isConfirmed) return;
+
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+
+    const { error } = await supabase.from("trip_expenses").insert([
+      {
+        expense_date: formattedDate,
+        item_name: `[เคลียร์ยอด] ${from} -> ${to}`,
+        amount: settleAmount,
+        category: HISTORY_CATEGORY,
+        paid_by: from,
+      },
+    ]);
+    if (error)
+      return Swal.fire({
+        icon: "error",
+        title: "บันทึกการโอนไม่สำเร็จ",
+        text: error.message,
+      });
+    await refreshExpenses();
+    Swal.fire({
+      icon: "success",
+      title: "เคลียร์ยอดสำเร็จ!",
+      text: `บันทึกการโอนเงินของ ${from} แล้ว ยอดหนี้เป็น 0`,
+      timer: 2000,
+      showConfirmButton: false,
+    });
+  };
+
+  const regularExpenses = expenses.filter(
+    (expense) => expense.category !== HISTORY_CATEGORY,
+  );
+  const historyExpenses = expenses.filter(
+    (expense) => expense.category === HISTORY_CATEGORY,
+  );
+  const groupedExpenses = useMemo(
+    () =>
+      regularExpenses.reduce((groups, expense) => {
+        (groups[expense.expense_date] ||= []).push(expense);
+        return groups;
+      }, {}),
+    [regularExpenses],
+  );
+  const totalExpense = useMemo(
+    () =>
+      regularExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0),
+    [regularExpenses],
+  );
+  const perPerson = MEMBERS.length > 0 ? totalExpense / MEMBERS.length : 0;
+  const previewGasCost =
+    Number.isFinite(Number(odoStart)) &&
+    Number.isFinite(Number(odoEnd)) &&
+    Number.isFinite(Number(gasPrice)) &&
+    Number(gasRate) > 0
+      ? ((Number(odoEnd) - Number(odoStart)) / Number(gasRate)) *
+        Number(gasPrice)
+      : 0;
+  const settlements = useMemo(() => {
+    const balances = MEMBERS.map((member) => {
+      const groupPaidAmount = regularExpenses
+        .filter((expense) => expense.paid_by === member)
+        .reduce((sum, expense) => sum + Number(expense.amount), 0);
+      let balance = groupPaidAmount - perPerson;
+      historyExpenses.forEach((expense) => {
+        if (expense.paid_by === member) balance += Number(expense.amount);
+        if (expense.item_name.includes(`-> ${member}`))
+          balance -= Number(expense.amount);
+      });
+      return { member, balance, groupPaidAmount };
+    });
+    const debtors = balances
+      .filter((balance) => balance.balance < -0.01)
+      .map((balance) => ({ ...balance }));
+    const creditors = balances
+      .filter((balance) => balance.balance > 0.01)
+      .map((balance) => ({ ...balance }));
+    const transfers = [];
+    let debtorIndex = 0;
+    let creditorIndex = 0;
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex];
+      const creditor = creditors[creditorIndex];
+      const transferAmount = Math.min(
+        Math.abs(debtor.balance),
+        creditor.balance,
+      );
+      if (transferAmount > 0.01)
+        transfers.push({
+          from: debtor.member,
+          to: creditor.member,
+          amount: transferAmount,
+        });
+      debtor.balance += transferAmount;
+      creditor.balance -= transferAmount;
+      if (Math.abs(debtor.balance) < 0.01) debtorIndex++;
+      if (creditor.balance < 0.01) creditorIndex++;
+    }
+    return { balances, transfers };
+  }, [MEMBERS, regularExpenses, historyExpenses, perPerson]);
+
+  return (
+    <div className="relative min-h-screen bg-black pb-20 font-sans text-gray-100">
+      <TripHeader
+        totalExpense={totalExpense}
+        perPerson={perPerson}
+        isSyncing={isSyncing}
+        onRefresh={refreshExpenses}
+        MEMBERS={MEMBERS}
+      />
+      <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
+        <ExpenseForm
+          editId={editId}
+          date={date}
+          category={category}
+          categories={CATEGORIES}
+          item={item}
+          amount={amount}
+          paidBy={paidBy}
+          members={MEMBERS}
+          onDateChange={setDate}
+          onCategoryChange={setCategory}
+          onItemChange={setItem}
+          onAmountChange={setAmount}
+          onPaidByChange={handlePaidByChange}
+          onAddMember={handleAddMember}
+          onSubmit={handleAddExpense}
+          onCancel={cancelEdit}
+        />
+
+        <ExpenseList
+          expenses={regularExpenses}
+          groupedExpenses={groupedExpenses}
+          loading={loading}
+          isExpanded={isListExpanded}
+          collapsedDates={collapsedDates}
+          onToggleExpanded={() => setIsListExpanded((expanded) => !expanded)}
+          onToggleDate={(value) =>
+            setCollapsedDates((dates) => ({ ...dates, [value]: !dates[value] }))
+          }
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+        <SettlementCard
+          settlements={settlements}
+          handleRemoveMember={handleRemoveMember}
+          onSettle={handleSettleDebt}
+        />
+        <GasForm
+          odoStart={odoStart}
+          odoEnd={odoEnd}
+          gasPrice={gasPrice}
+          gasRate={gasRate}
+          previewGasCost={previewGasCost}
+          onOdoStartChange={setOdoStart}
+          onOdoEndChange={setOdoEnd}
+          onGasPriceChange={setGasPrice}
+          onGasRateChange={setGasRate}
+          onSubmit={handleAddGas}
+        />
+      </main>
+      <button
+        onClick={() => setShowHistory(true)}
+        className="fixed bottom-6 right-6 z-40 rounded-full bg-amber-500 p-4 text-gray-950 shadow-xl shadow-lime-500/10 transition hover:bg-amber-700"
+        title="ดูประวัติการเคลียร์เงิน"
+      >
+        <History size={24} />
+      </button>
+      {showHistory && (
+        <HistoryModal
+          expenses={historyExpenses}
+          onClose={() => setShowHistory(false)}
+          onUndo={handleUndoHistory}
+        />
+      )}
+    </div>
+  );
+}
+
+
+===== src/components/ExpenseForm.jsx =====
+
+import { Edit2, Receipt } from "lucide-react";
+
+export default function ExpenseForm({
+  editId,
+  date,
+  category,
+  categories,
+  item,
+  amount,
+  paidBy,
+  members,
+  onDateChange,
+  onCategoryChange,
+  onItemChange,
+  onAmountChange,
+  onPaidByChange,
+  onAddMember, 
+  onSubmit,
+  onCancel,
+}) {
+  const setToday = () => {
+    onDateChange(new Date().toLocaleDateString("en-CA"));
+  };
+
+  return (
+    <section
+      className={`rounded-xl border p-5 shadow-sm ${
+        editId ? "border-lime-400 bg-gray-900" : "border-gray-700 bg-gray-900"
+      }`}
+    >
+      <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
+        {editId ? <Edit2 size={20} className="text-lime-400" /> : <Receipt size={20} />}
+        <h2 className={editId ? "text-lime-400" : ""}>
+          {editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}
+        </h2>
+      </div>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <div className="space-y-3">
+          <div className="flex flex-col">
+            <label className="mb-1 text-xs text-gray-400">วันที่</label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={(event) => onDateChange(event.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={setToday}
+                className="w-1/4 rounded-lg bg-lime-400 px-3 text-md font-bold text-gray-950 transition hover:bg-lime-300"
+              >
+                วันนี้
+              </button>
+            </div>
+          </div>
+          <label className="flex flex-col text-xs text-gray-400">
+            <span className="mb-1">หมวดหมู่</span>
+            <select
+              value={category}
+              onChange={(event) => onCategoryChange(event.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+            >
+              {categories.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="block text-xs text-gray-400">
+          ชื่อรายการ (เว้นว่างได้)
+          <input
+            type="text"
+            placeholder="ดึงชื่อหมวดรายการ"
+            value={item}
+            onChange={(event) => onItemChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col text-xs text-gray-400">
+            <span className="mb-1">จำนวนเงิน (บาท)</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={(event) => onAmountChange(event.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col text-xs text-gray-400">
+            <span className="mb-1">คนจ่ายสำรอง</span>
+            {/* ดักจับ onChange หากเลือกเพิ่มคน ให้เรียก onAddMember แทน */}
+            <select
+              value={paidBy}
+              onChange={(event) => {
+                if (event.target.value === "ADD_NEW_MEMBER") {
+                  onAddMember();
+                } else {
+                  onPaidByChange(event.target.value);
+                }
+              }}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
+            >
+              {members.map((member) => (
+                <option key={member} value={member}>
+                  {member}
+                </option>
+              ))}
+              {/* 🧠 เพิ่มตัวเลือกนี้ไว้ล่างสุด */}
+              <option value="ADD_NEW_MEMBER" className="bg-gray-700 font-bold text-lime-400">
+                + เพิ่มคนจ่าย...
+              </option>
+            </select>
+          </label>
+        </div>
+        {editId ? (
+          <div className="flex gap-2">
+            <button type="submit" className="flex-1 rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
+              บันทึกแก้ไข
+            </button>
+            <button type="button" onClick={onCancel} className="rounded-lg bg-gray-700 px-4 py-3 font-bold text-gray-100 transition hover:bg-gray-600">
+              ยกเลิก
+            </button>
+          </div>
+        ) : (
+          <button type="submit" className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
+            บันทึกรายการ
+          </button>
+        )}
+      </form>
+    </section>
+  );
+}
+
+
+===== src/components/ExpenseList.jsx =====
+
+import {
+  ChevronDown,
+  ChevronRight,
+  Edit2,
+  FolderClosed,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+  Receipt,
+  Trash2,
+} from "lucide-react";
+import { useState, useRef } from "react";
+
+//  Component ย่อยสำหรับแต่ละรายการ
+function ExpenseItem({
+  expense,
+  swipedId,
+  setSwipedId,
+  onEdit,
+  onDelete,
+  formatMoney,
+  isLast,
+}) {
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
+  const isMouse = useRef(false);
+
+  const isOpen = swipedId === expense.id;
+
+  // ปรับระยะดึงให้พอดีกับปุ่มวงกลม (ปุ่มวงกลมใช้พื้นที่ประมาณ 60px)
+  let currentOffset = isOpen ? -70 : 0;
+  if (drag.active) {
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
+    if (currentOffset > 0) currentOffset = 0;
+    if (currentOffset < -90) currentOffset = -90; // ยืดสุดได้แค่ -90px
+  }
+
+  // เช็คว่าเริ่มโดนลากเกิน 5px หรือยัง เพื่อเปลี่ยนขอบการ์ดให้โค้งมน
+  const isSwiped = currentOffset < -5;
+
+  const startDrag = (clientX, clientY) => {
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
+    if (swipedId !== expense.id) setSwipedId(null);
+  };
+
+  const moveDrag = (clientX, clientY) => {
+    if (!drag.active) return;
+    const diffX = clientX - drag.startX;
+    const diffY = Math.abs(clientY - drag.startY);
+
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
+      setDrag((prev) => ({ ...prev, scrolling: true }));
+    }
+    if (drag.scrolling) return;
+    setDrag((prev) => ({ ...prev, offset: diffX }));
+  };
+
+  const endDrag = () => {
+    if (!drag.active) return;
+    if (!drag.scrolling) {
+      // ถ้าดึงเกิน -35 ให้ถือว่าเปิด
+      if (currentOffset < -35) setSwipedId(expense.id);
+      else setSwipedId(null);
+    }
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
+  };
+
+  return (
+    // เปลี่ยนพื้นหลังหลักเป็นสีเดียวกับฉากหลัง เพื่อให้ปุ่มวงกลมดูลอยเด่นขึ้นมา
+    <div
+      className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
+    >
+      {/* 🗑️ กล่องปุ่ม Delete "วงกลม" สีแดง ลอยอยู่ขวาสุด */}
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center">
+        <button
+          onClick={() => {
+            onDelete(expense.id);
+            setSwipedId(null);
+          }}
+          //  กำหนดให้ปุ่มเป็นวงกลม (h-11 w-11 rounded-full)
+          className="flex h-13 w-13 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+          style={{
+            // ถ้ายังดึงไม่ถึงระยะ ให้ซ่อนปุ่มไว้ก่อน (opacity) และให้มันค่อยๆ ขยายตัวโผล่มา (scale)
+            opacity: currentOffset < -20 ? 1 : 0,
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active ? "none" : "all 0.25s ease-out",
+          }}
+        >
+          <Trash2 size={22} />
+        </button>
+      </div>
+
+      {/* 📱 เลเยอร์การ์ดสีเทาหลัก */}
+      <div
+        className={` relative z-10 flex cursor-grab touch-pan-y items-center justify-between  p-3 pl-8 active:cursor-grabbing ${isOpen || drag.active ? "bg-gray-700" : "bg-gray-800"}  `}
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active ? "none" : "all 0.25s ease-out",
+          //  สั่งให้ขอบขวา "โค้งมน (Rounded)" เมื่อเริ่มโดนลาก
+          borderTopRightRadius: isSwiped ? "20px" : "0px",
+          borderBottomRightRadius: isSwiped ? "20px" : "0px",
+        }}
+        // Touch
+        onTouchStart={(e) =>
+          startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchMove={(e) =>
+          moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchEnd={endDrag}
+        // Mouse
+        onMouseDown={(e) => {
+          isMouse.current = true;
+          startDrag(e.clientX, e.clientY);
+        }}
+        onMouseMove={(e) => {
+          if (isMouse.current) moveDrag(e.clientX, e.clientY);
+        }}
+        onMouseUp={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+        onMouseLeave={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+      >
+        <div className="flex-1 pointer-events-none">
+          <p className="mb-0.5 text-xs text-gray-400">
+            จ่ายโดย:{" "}
+            <span className="font-bold text-lime-400">{expense.paid_by}</span>
+          </p>
+          <p className="font-medium text-gray-100">{expense.item_name}</p>
+          <p className="text-xs text-gray-400">{expense.category}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="font-bold text-gray-100 pointer-events-none">
+            ฿{formatMoney(expense.amount)}
+          </p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(expense);
+              setSwipedId(null);
+            }}
+            className="text-gray-400 transition hover:text-lime-400 z-20 relative"
+          >
+            <Edit2 size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 🧠 Component หลัก
+export default function ExpenseList({
+  expenses,
+  groupedExpenses,
+  loading,
+  isExpanded,
+  collapsedDates,
+  onToggleExpanded,
+  onToggleDate,
+  onEdit,
+  onDelete,
+}) {
+  const [swipedId, setSwipedId] = useState(null);
+
+  const formatMoney = (value) =>
+    Number(value).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm relative">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-bold text-gray-100">
+          <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>
+        </div>
+        <button
+          onClick={onToggleExpanded}
+          className="flex items-center gap-1 rounded-full bg-gray-800 px-3 py-1.5 text-xs text-gray-300 shadow-sm"
+        >
+          {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{" "}
+          {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
+      ) : expenses.length === 0 ? (
+        <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
+      ) : (
+        <div
+          className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}
+        >
+          {Object.keys(groupedExpenses).map((date) => (
+            <div
+              key={date}
+              className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-sm"
+            >
+              <button
+                onClick={() => onToggleDate(date)}
+                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-600 p-3 hover:bg-gray-600 relative z-20"
+              >
+                <div className="flex items-center gap-2 font-bold text-gray-100">
+                  {collapsedDates[date] ? (
+                    <FolderClosed size={16} className="text-lime-400" />
+                  ) : (
+                    <FolderOpen size={16} className="text-lime-400" />
+                  )}
+                  <span>{date}</span>
+                  <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-normal text-gray-300">
+                    {groupedExpenses[date].length} รายการ
+                  </span>
+                </div>
+                {collapsedDates[date] ? (
+                  <ChevronRight size={18} className="text-lime-400" />
+                ) : (
+                  <ChevronDown size={18} className="text-lime-400" />
+                )}
+              </button>
+
+              <div
+                className={`grid transition-all duration-400 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr]" : "grid-rows-[1fr] opacity-100"}`}
+              >
+                <div className="overflow-hidden bg-gray-900">
+                  {groupedExpenses[date].map((expense, index) => (
+                    <ExpenseItem
+                      key={expense.id}
+                      expense={expense}
+                      swipedId={swipedId}
+                      setSwipedId={setSwipedId}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      formatMoney={formatMoney}
+                      isLast={index === groupedExpenses[date].length - 1}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
+===== src/components/GasForm.jsx =====
+
+import { Car } from "lucide-react";
+
+export default function GasForm({
+  odoStart,
+  odoEnd,
+  gasPrice,
+  gasRate,
+  previewGasCost,
+  onOdoStartChange,
+  onOdoEndChange,
+  onGasPriceChange,
+  onGasRateChange,
+  onSubmit,
+}) {
+  const formatMoney = (value) =>
+    value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
+        <Car size={20} /> <h2>คำนวณ & จดค่าน้ำมัน</h2>
+      </div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-base text-gray-400">
+            เลขไมล์เริ่มต้น
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={odoStart} 
+              onChange={(event) => onOdoStartChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
+          </label>
+          <label className="text-base text-gray-400">
+            เลขไมล์ล่าสุด
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={odoEnd} 
+              onChange={(event) => onOdoEndChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-base text-gray-400">
+            ราคาน้ำมัน (บ./ลิตร)
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={gasPrice} 
+              onChange={(event) => onGasPriceChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
+          </label>
+          <label className="text-base text-gray-400">
+            อัตรากินน้ำมัน (กม./ล.)
+            <input 
+              type="number" 
+              inputMode="decimal"
+              value={gasRate} 
+              onChange={(event) => onGasRateChange(event.target.value)} 
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-gray-100 focus:border-lime-400 focus:outline-none" 
+            />
+          </label>
+        </div>
+        <div className="my-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-center">
+          <p className="mb-1 text-base text-lime-400">ยอดค่าน้ำมันจำลอง (หาร 4 แล้ว)</p>
+          <h3 className="text-2xl font-bold text-lime-400">฿{formatMoney(previewGasCost)}</h3>
+        </div>
+        <button onClick={onSubmit} className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">
+          + บันทึกค่าน้ำมัน
+        </button>
+      </div>
+    </section>
+  );
+}
+
+
+===== src/components/HistoryModal.jsx =====
+
+import { History, RotateCcw, X } from "lucide-react";
+import { useEffect } from "react";
+
+export default function HistoryModal({ expenses, onClose, onUndo }) {
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleEsc);
+
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
+          <h2 className="flex items-center gap-2 font-bold">
+            <History size={20} /> ประวัติการเคลียร์ยอด
+          </h2>
+          <button onClick={onClose} className="hover:text-lime-300">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {expenses.length === 0 ? (
+            <p className="py-10 text-center text-gray-400">
+              ยังไม่มีประวัติการโอนเงิน
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {expenses.map((expense) => (
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3"
+                >
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      {expense.expense_date}
+                    </p>
+                    <p className="font-medium text-gray-100">
+                      {expense.item_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right">
+                    <p className="font-bold text-lime-400">
+                      ฿{Number(expense.amount).toLocaleString()}
+                    </p>
+                    {/*  เปลี่ยนเป็นปุ่มกู้คืน (Undo) พร้อมไอคอน RotateCcw */}
+                    <button
+                      onClick={() => onUndo(expense.id)}
+                      className="ml-2 flex items-center gap-1 rounded-3xl border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs text-sky-400 transition hover:bg-sky-500 hover:text-gray-950"
+                      title="กู้คืนรายการนี้"
+                    >
+                      <RotateCcw size={14} /> กู้คืนรายการ
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+===== src/components/SettlementCard.jsx =====
+
+import { ArrowRight, CheckCircle, Trash2, Users } from "lucide-react"; // 🧠 เอา Plus ออก
+
+export default function SettlementCard({
+  settlements,
+  onSettle,
+  handleRemoveMember,
+}) {
+  const formatMoney = (value) =>
+    value.toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+  return (
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between font-bold text-lime-400">
+        <div className="flex items-center gap-2">
+          <Users size={20} /> <h2>สรุปเคลียร์เงิน</h2>
+        </div>
+        {/* 🧠 ปุ่มเพิ่มสมาชิกถูกถอดออกไปแล้ว */}
+      </div>
+      <div className="mb-6 space-y-2">
+        {settlements.transfers.length === 0 ? (
+          <p className="py-2 text-center text-sm text-gray-400">
+            ทุกคนเคลียร์เงินครบแล้ว 🎉
+          </p>
+        ) : (
+          settlements.transfers.map((transfer) => (
+            <div
+              key={`${transfer.from}-${transfer.to}`}
+              className="rounded-lg border border-lime-900 bg-gray-800 p-3 "
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 font-medium p-2 ">
+                  <span className="text-gray-100">{transfer.from}</span>
+                  <ArrowRight size={16} className="text-gray-400" />
+                  <span className="text-gray-100">{transfer.to}</span>
+                </div>
+                <div className="font-bold text-lime-400">
+                  ฿{formatMoney(transfer.amount)}
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  onSettle(transfer.from, transfer.to, transfer.amount)
+                }
+                className="flex w-10/12 m-auto items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
+              >
+                <CheckCircle size={14} /> เคลียร์ยอดนี้
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+      <hr className="my-4 border-gray-800" />
+      <div className="space-y-3">
+        <p className="mb-2 text-xs font-bold text-gray-400">
+          สรุปยอดสุทธิแต่ละคน
+        </p>
+        {settlements.balances.map((balance) => (
+          <div
+            key={balance.member}
+            className="flex items-center justify-between text-sm"
+          >
+            <div className="flex items-center gap-2 font-medium text-gray-100">
+              <span>{balance.member}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveMember(balance.member)}
+                className="rounded p-1 text-red-500 transition hover:bg-red-100 hover:text-red-700"
+                title={`ลบ ${balance.member}`}
+                aria-label={`ลบ ${balance.member}`}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="text-right">
+              {balance.balance > 0.01 ? (
+                <span className="font-bold text-lime-400">
+                  (ได้คืน ฿{formatMoney(balance.balance)})
+                </span>
+              ) : balance.balance < -0.01 ? (
+                <span className="font-bold text-red-500">
+                  (ติดลบ ฿{formatMoney(Math.abs(balance.balance))})
+                </span>
+              ) : (
+                <span className="font-bold text-gray-400">(พอดี)</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+
+===== src/components/TripHeader.jsx =====
+
+// src/components/TripHeader.jsx
+
+import { RefreshCw, Check } from "lucide-react";
+import { useEffect, useState } from "react";
+
+export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefresh, MEMBERS }) {
+  const [syncStatus, setSyncStatus] = useState("idle");
+
+  // 1. ดักจับการเริ่มซิงก์และซิงก์เสร็จ
+  useEffect(() => {
+    if (isSyncing) {
+      setSyncStatus("syncing");
+    } else if (!isSyncing && syncStatus === "syncing") {
+      setSyncStatus("success");
+    }
+  }, [isSyncing]); // เอา syncStatus ออกจาก dep จะได้ไม่เผลอไปตัด Timer ตัวเอง
+
+  // 2. ดักจับตอนเป็น success ให้รอ 1.5 วิ แล้วค่อยกลับไป idle
+  useEffect(() => {
+    if (syncStatus === "success") {
+      const timer = setTimeout(() => setSyncStatus("idle"), 1500); // เพิ่มเวลาให้ดูแอนิเมชันทัน
+      return () => clearTimeout(timer);
+    }
+  }, [syncStatus]);
+
+  const formatMoney = (value) =>
+    value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  return (
+    <header className="sticky top-0 z-40 bg-gray-900 p-4 text-gray-100 shadow-md">
+      {/*  แทรก CSS สำหรับทำแอนิเมชันวาดเส้นขีดถูก */}
+      <style>{`
+        @keyframes drawCheck {
+          0% {
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+          }
+          100% {
+            stroke-dasharray: 50;
+            stroke-dashoffset: 0;
+          }
+        }
+        .animate-draw {
+          animation: drawCheck 0.4s ease-out ;
+        }
+      `}</style>
+
+      <div className="relative mx-auto max-w-md text-center">
+        <button
+          onClick={onRefresh}
+          disabled={syncStatus === "syncing"} 
+          // 🧠 ล็อกความกว้าง-สูงให้ปุ่ม (h-10 w-10) ป้องกันปุ่มขยับตอนสลับไอคอน
+          className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+          title="รีเฟรชข้อมูล"
+        >
+          {syncStatus === "syncing" ? (
+            <RefreshCw size={40} className="animate-spin text-gray-400" />
+          ) : syncStatus === "success" ? (
+            //  เรียกใช้ class animate-draw ที่เราสร้างไว้ใน <style>
+            <Check size={40} className="text-lime-400 animate-draw" />
+          ) : (
+            <RefreshCw size={40} className="text-gray-300 transition" />
+          )}
+        </button>
+        <p className="mt-1 text-sm font-light opacity-80">ยอดรวมค่าใช้จ่ายทั้งทริป</p>
+        <h1 className="my-1 text-4xl font-bold">฿{formatMoney(totalExpense)}</h1>
+        <p className="mt-3 inline-block rounded-full bg-gray-800 px-3 py-1 text-sm text-lime-400">
+          หาร {MEMBERS.length} คน = ตกคนละ ฿{formatMoney(perPerson)}
+        </p>
+      </div>
+    </header>
+  );
+}
