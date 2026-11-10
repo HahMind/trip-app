@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Edit2, FolderClosed, FolderOpen, Maximize2, Minimize2, Receipt, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 export default function ExpenseList({
   expenses,
@@ -11,6 +12,39 @@ export default function ExpenseList({
   onEdit,
   onDelete,
 }) {
+  const [swipedExpenseId, setSwipedExpenseId] = useState(null);
+  const [touchStartX, setTouchStartX] = useState(null);
+
+  // เริ่มแตะหน้าจอ
+  const handleTouchStart = (e, id) => {
+    setTouchStartX(e.targetTouches[0].clientX);
+    // ปิดอันอื่นที่เปิดอยู่ถ้าแตะอันใหม่
+    if (swipedExpenseId !== id) {
+      setSwipedExpenseId(null);
+    }
+  };
+
+  // กำลังลากนิ้ว
+  const handleTouchMove = (e, id) => {
+    if (touchStartX === null) return;
+    const currentX = e.targetTouches[0].clientX;
+    const diff = touchStartX - currentX;
+
+    // ลากไปทางซ้ายมากกว่า 40px ให้เปิดปุ่มลบ
+    if (diff > 40) {
+      setSwipedExpenseId(id);
+    } 
+    // ลากกลับไปทางขวาให้ปิดปุ่มลบ
+    else if (diff < -40) {
+      setSwipedExpenseId(null);
+    }
+  };
+
+  // ปล่อยนิ้ว
+  const handleTouchEnd = () => {
+    setTouchStartX(null);
+  };
+
   const formatMoney = (value) =>
     Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -24,12 +58,13 @@ export default function ExpenseList({
           {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />} {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
         </button>
       </div>
+      
       {loading ? (
         <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
       ) : expenses.length === 0 ? (
         <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
       ) : (
-        <div className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto" : ""}`}>
+        <div className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}>
           {Object.keys(groupedExpenses).map((date) => (
             <div key={date} className="overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow-sm">
               <button onClick={() => onToggleDate(date)} className="flex w-full items-center justify-between rounded-lg border-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600">
@@ -40,19 +75,55 @@ export default function ExpenseList({
                 </div>
                 {collapsedDates[date] ? <ChevronRight size={18} className="text-lime-400" /> : <ChevronDown size={18} className="text-lime-400" />}
               </button>
+              
               {!collapsedDates[date] && (
-                <div className="divide-y divide-gray-800">
+                <div className="divide-y divide-gray-800 overflow-hidden">
                   {groupedExpenses[date].map((expense) => (
-                    <div key={expense.id} className="flex items-center justify-between p-3 pl-8">
-                      <div className="flex-1">
-                        <p className="mb-0.5 text-xs text-gray-400">จ่ายโดย: <span className="font-bold text-lime-400">{expense.paid_by}</span></p>
-                        <p className="font-medium text-gray-100">{expense.item_name}</p>
-                        <p className="text-xs text-gray-400">{expense.category}</p>
+                    <div 
+                      key={expense.id} 
+                      className="relative overflow-hidden bg-red-500" // พื้นหลังสีแดงของปุ่มลบ
+                    >
+                      {/* ปุ่ม Delete ด้านหลัง (โผล่มาตอนปัด) */}
+                      <div className="absolute inset-y-0 right-0 flex items-center justify-end">
+                        <button 
+                          onClick={() => {
+                            onDelete(expense.id);
+                            setSwipedExpenseId(null);
+                          }} 
+                          className="flex h-full w-20 flex-col items-center justify-center text-white transition hover:bg-red-600"
+                        >
+                          <Trash2 size={20} className="mb-1" />
+                          <span className="text-xs font-medium">Delete</span>
+                        </button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-gray-100">฿{formatMoney(expense.amount)}</p>
-                        <button onClick={() => onEdit(expense)} className="ml-2 text-gray-300 transition hover:text-lime-400"><Edit2 size={16} /></button>
-                        <button onClick={() => onDelete(expense.id)} className="text-gray-300 transition hover:text-red-500"><Trash2 size={16} /></button>
+
+                      {/* กล่องเนื้อหารายการ (ตัวที่ขยับไปมา) */}
+                      <div 
+                        className={`flex items-center justify-between border-gray-800 bg-gray-800 p-3 pl-8 transition-transform duration-300 ease-in-out ${
+                          swipedExpenseId === expense.id ? "-translate-x-20" : "translate-x-0"
+                        }`}
+                        onTouchStart={(e) => handleTouchStart(e, expense.id)}
+                        onTouchMove={(e) => handleTouchMove(e, expense.id)}
+                        onTouchEnd={handleTouchEnd}
+                      >
+                        <div className="flex-1">
+                          <p className="mb-0.5 text-xs text-gray-400">จ่ายโดย: <span className="font-bold text-lime-400">{expense.paid_by}</span></p>
+                          <p className="font-medium text-gray-100">{expense.item_name}</p>
+                          <p className="text-xs text-gray-400">{expense.category}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <p className="font-bold text-gray-100">฿{formatMoney(expense.amount)}</p>
+                          {/* ซ่อนปุ่มลบอันเก่าไป เอาแค่ปุ่มแก้ไขไว้ */}
+                          <button 
+                            onClick={() => {
+                              onEdit(expense);
+                              setSwipedExpenseId(null);
+                            }} 
+                            className="text-gray-400 transition hover:text-lime-400"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
