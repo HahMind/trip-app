@@ -59,7 +59,7 @@ export default function TripHeader({ totalExpense, perPerson, isSyncing, onRefre
           {syncStatus === "syncing" ? (
             <RefreshCw size={40} className="animate-spin text-gray-400" />
           ) : syncStatus === "success" ? (
-            // 🧠 เรียกใช้ class animate-draw ที่เราสร้างไว้ใน <style>
+            //  เรียกใช้ class animate-draw ที่เราสร้างไว้ใน <style>
             <Check size={40} className="text-lime-400 animate-draw" />
           ) : (
             <RefreshCw size={40} className="text-gray-300 transition" />
