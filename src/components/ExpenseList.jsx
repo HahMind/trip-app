@@ -31,28 +31,17 @@ function ExpenseItem({
   const isMouse = useRef(false);
 
   const isOpen = swipedId === expense.id;
-  const OPEN_OFFSET = 90;
-  const OVERSCROLL = 10;
-  const MAX_OFFSET = OPEN_OFFSET + OVERSCROLL;
 
-  // เปิดปุ่มที่ 90px และยอมให้ดึงเกินได้อีก -px เฉพาะตอนกำลังลาก
-  let currentOffset = isOpen ? -OPEN_OFFSET : 0;
+  // ปรับระยะดึงให้พอดีกับปุ่มวงกลม (ปุ่มวงกลมใช้พื้นที่ประมาณ 60px)
+  let currentOffset = isOpen ? -70 : 0;
   if (drag.active) {
-    currentOffset = (isOpen ? -OPEN_OFFSET : 0) + drag.offset;
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
     if (currentOffset > 0) currentOffset = 0;
-    if (currentOffset < -MAX_OFFSET) currentOffset = -MAX_OFFSET;
+    if (currentOffset < -90) currentOffset = -90; // ยืดสุดได้แค่ -90px
   }
 
-  // ใช้ระยะที่ลากจริงคำนวณขนาดปุ่ม ไม่ใช้เวลาเป็นเงื่อนไข
+  // เช็คว่าเริ่มโดนลากเกิน 5px หรือยัง เพื่อเปลี่ยนขอบการ์ดให้โค้งมน
   const isSwiped = currentOffset < -5;
-  const swipeDistance = Math.max(0, -currentOffset);
-  const buttonScale =
-    swipeDistance <= 70
-      ? 0.5
-      : Math.min(
-          1.2,
-          0.5 + ((swipeDistance - 75) / (MAX_OFFSET - 75)) * 0.98,
-        );
 
   const startDrag = (clientX, clientY) => {
     setDrag({
@@ -80,8 +69,8 @@ function ExpenseItem({
   const endDrag = () => {
     if (!drag.active) return;
     if (!drag.scrolling) {
-      // ปล่อยหลังลากเกิน 85px ให้เปิดค้างที่ 90px
-      if (currentOffset < -85) setSwipedId(expense.id);
+      // ถ้าดึงเกิน -35 ให้ถือว่าเปิด
+      if (currentOffset < -35) setSwipedId(expense.id);
       else setSwipedId(null);
     }
     setDrag({
@@ -94,26 +83,24 @@ function ExpenseItem({
   };
 
   return (
+    // เปลี่ยนพื้นหลังหลักเป็นสีเดียวกับฉากหลัง เพื่อให้ปุ่มวงกลมดูลอยเด่นขึ้นมา
     <div
-      className={`relative bg-gray-950 ${!isLast ? "border-b border-gray-800" : ""}`}
+      className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
     >
-      {/* กล่องปุ่ม Delete "วงกลม" สีแดง ลอยอยู่ขวาสุด */}
-      <div className="absolute inset-y-0 right-5 flex items-center justify-center">
+      {/* 🗑️ กล่องปุ่ม Delete "วงกลม" สีแดง ลอยอยู่ขวาสุด */}
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center">
         <button
           onClick={() => {
             onDelete(expense.id);
             setSwipedId(null);
           }}
           //  กำหนดให้ปุ่มเป็นวงกลม (h-11 w-11 rounded-full)
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+          className="flex h-13 w-13 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
           style={{
-            // ปุ่มเริ่มเห็นหลังลาก 30px ส่วนขนาดจะเริ่มขยายหลัง 75px
-            opacity: currentOffset < -30 ? 1 : 0,
-            transform: `scale(${buttonScale})`,
-            // ระหว่างลากให้ขนาดตามนิ้วทันที พอปล่อยจึง animate เฉพาะ transform
-            transition: drag.active
-              ? "none"
-              : "transform 0.25s ease-out, opacity 0.2s ease-out",
+            // ถ้ายังดึงไม่ถึงระยะ ให้ซ่อนปุ่มไว้ก่อน (opacity) และให้มันค่อยๆ ขยายตัวโผล่มา (scale)
+            opacity: currentOffset < -20 ? 1 : 0,
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active ? "none" : "all 0.25s ease-out",
           }}
         >
           <Trash2 size={22} />
@@ -125,7 +112,7 @@ function ExpenseItem({
         className={` relative z-10 flex cursor-grab touch-pan-y items-center justify-between  p-3 pl-8 active:cursor-grabbing ${isOpen || drag.active ? "bg-gray-700" : "bg-gray-800"}  `}
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,
-          transition: drag.active ? "all 0.3s ease-out" : "all 0.25s ease-out",
+          transition: drag.active ? "none" : "all 0.25s ease-out",
           //  สั่งให้ขอบขวา "โค้งมน (Rounded)" เมื่อเริ่มโดนลาก
           borderTopRightRadius: isSwiped ? "20px" : "0px",
           borderBottomRightRadius: isSwiped ? "20px" : "0px",
@@ -237,7 +224,7 @@ export default function ExpenseList({
             >
               <button
                 onClick={() => onToggleDate(date)}
-                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-600 p-3 hover:bg-gray-600 relative z-20"
+                className="flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600 relative z-20"
               >
                 <div className="flex items-center gap-2 font-bold text-gray-100">
                   {collapsedDates[date] ? (
