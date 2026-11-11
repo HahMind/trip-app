@@ -114,7 +114,7 @@ export default function ExpenseItem({
       <div
         //  สลับ Class การสว่าง (Highlight สีเหลือง) หาก isHighlighted เป็น true
         className={`relative z-10 flex cursor-grab touch-pan-y items-center justify-between p-3 pl-8 active:cursor-grabbing transition-colors duration-700 ${
-          isHighlighted ? "bg-gray-500/30 shadow-[inset_4px_0_0_#c9c9af]" : "bg-gray-800"
+          isHighlighted ? "bg-yellow-200/30 shadow-[inset_4px_0_0_#c9c9af]" : "bg-gray-800"
         }`}
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,

@@ -10,8 +10,9 @@ export default function MemberItem({
   onUpdateDetails,
   swipedMember,
   setSwipedMember,
+  isEditing,
+  onEdit,
 }) {
-  const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({
     promptpay: details?.promptpay || "",
     bankId: details?.bankId || "kbank",
@@ -60,8 +61,14 @@ export default function MemberItem({
   const endDrag = () => {
     if (!drag.active) return;
     if (!drag.scrolling) {
-      if (currentOffset < -35) setSwipedMember(member);
-      else setSwipedMember(null);
+      if (Math.abs(drag.offset) < 5) {
+      } else if (drag.offset < -20) {
+        setSwipedMember(member);
+      } else if (drag.offset > 20) {
+        setSwipedMember(null);
+      } else {
+        setSwipedMember(isOpen ? member : null);
+      }
     }
     setDrag({
       active: false,
@@ -74,7 +81,7 @@ export default function MemberItem({
 
   const toggleEdit = () => {
     if (!isEditing) setSwipedMember(null);
-    setIsEditing(!isEditing);
+    onEdit();
   };
 
   return (
@@ -206,4 +213,3 @@ export default function MemberItem({
     </div>
   );
 }
-

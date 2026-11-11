@@ -2,6 +2,7 @@ import { CheckCircle, Copy, Wallet } from "lucide-react";
 import { useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
 import { formatMoney, openBankApp } from "../utils/trip";
+import Swal from "sweetalert2";
 
 export default function PaymentModal({
   from,

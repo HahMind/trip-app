@@ -20,6 +20,7 @@ export default function MemberModal({
     bankAcc: "",
   });
   const [swipedMember, setSwipedMember] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -153,6 +154,8 @@ export default function MemberModal({
                   onUpdateDetails={onUpdateDetails}
                   swipedMember={swipedMember}
                   setSwipedMember={setSwipedMember}
+                  isEditing={editingMember === member}
+                  onEdit={() => setEditingMember(editingMember === member ? null : member)}
                 />
               );
             })}
