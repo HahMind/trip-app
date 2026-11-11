@@ -1,13 +1,15 @@
+// v2.0.0 - 2024-06-11 ปรับเรืองการจัดการสมาชิกและวิธีชำระเงิน, เพิ่มประวัติการโอนเงิน, ปรับ UI/UX ให้ใช้งานง่ายขึ้น
+
 import {
   ArrowRight,
   Check,
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  Copy,
   Edit2,
   FolderClosed,
   FolderOpen,
-  Fuel,
   History,
   Maximize2,
   Minimize2,
@@ -15,10 +17,13 @@ import {
   Receipt,
   RefreshCw,
   RotateCcw,
+  Save,
   Trash2,
   UserPlus,
   Users,
+  Wallet,
   X,
+  Fuel,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -29,18 +34,27 @@ import Swal from "sweetalert2";
 // ----------------------------------------
 const supabase = createClient(
   "https://ovphjcceaxajshgzyvaz.supabase.co",
-  "sb_publishable_2akfx9awEyywfq5Q0ZpLWA_iQGY9gzD"
+  "sb_publishable_2akfx9awEyywfq5Q0ZpLWA_iQGY9gzD",
 );
 
-const CATEGORIES = ["ค่าอาหาร", "ค่ารถ", "ค่าน้ำมัน", "ค่าที่พัก", "ค่าเที่ยว", "อื่นๆ"];
+const CATEGORIES = [
+  "ค่าอาหาร",
+  "ค่ารถ",
+  "ค่าน้ำมัน",
+  "ค่าที่พัก",
+  "ค่าเที่ยว",
+  "อื่นๆ",
+];
 const HISTORY_CATEGORY = "ประวัติการโอน";
 const DEFAULT_MEMBERS = ["หมิว", "มาย", "เมย์", "พี่เบส"];
-const QR_IMAGES = {
-  หมิว: "/Mind's QR.png",
-  มาย: "/Mind's QR.png",
-  เมย์: "/Mind's QR.png",
-  พี่เบส: "/Mind's QR.png",
-};
+
+const BANKS = [
+  { id: "kbank", name: "กสิกรไทย (KBank)", scheme: "kplus://" },
+  { id: "scb", name: "ไทยพาณิชย์ (SCB)", scheme: "scbeasy://" },
+  { id: "ktb", name: "กรุงไทย (KTB)", scheme: "ktbnext://" },
+  { id: "gsb", name: "ออมสิน (GSB)", scheme: "mymobaz://" },
+  { id: "other", name: "อื่นๆ (ไม่เปิดแอป)", scheme: "" },
+];
 
 const SWAL_THEME = {
   background: "#111827",
@@ -74,23 +88,272 @@ const parseForUI = (thDate) => {
 const getStoredMembers = () => {
   try {
     const saved = JSON.parse(localStorage.getItem("tripMembers") || "null");
-    if (Array.isArray(saved)) {
-      const members = [...new Set(saved.map((member) => String(member).trim()))].filter(Boolean);
-      if (members.length > 0) return members;
-    }
-  } catch {
-    localStorage.removeItem("tripMembers");
-  }
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+  } catch {}
   return DEFAULT_MEMBERS;
 };
+const getStoredMemberDetails = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("memberDetails") || "null");
+    if (saved) return saved;
+  } catch {}
+  return {};
+};
 const formatMoney = (value) =>
-  Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const openBankApp = async (textToCopy, scheme, title) => {
+  try {
+    await navigator.clipboard.writeText(textToCopy);
+    Swal.fire({
+      ...SWAL_THEME,
+      icon: "success",
+      title: title,
+      text: scheme ? "คัดลอกแล้ว กำลังเปิดแอปธนาคาร..." : "คัดลอกเรียบร้อยแล้ว",
+      timer: 1500,
+      showConfirmButton: false,
+    });
+    if (scheme) {
+      setTimeout(() => {
+        window.location.href = scheme;
+      }, 500);
+    }
+  } catch (err) {
+    Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
+  }
+};
+
+// ----------------------------------------
+// Component: MemberItem (Swipe to delete & Edit)
+// ----------------------------------------
+function MemberItem({
+  member,
+  hasDebt,
+  details,
+  onRemove,
+  onUpdateDetails,
+  swipedMember,
+  setSwipedMember,
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({
+    promptpay: details?.promptpay || "",
+    bankId: details?.bankId || "kbank",
+    bankAcc: details?.bankAcc || "",
+  });
+
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
+  const isMouse = useRef(false);
+
+  const isOpen = swipedMember === member;
+  let currentOffset = isOpen ? -70 : 0;
+  if (drag.active) {
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
+    if (currentOffset > 0) currentOffset = 0;
+    if (currentOffset < -90) currentOffset = -90;
+  }
+  const isSwiped = currentOffset < -5;
+
+  const startDrag = (clientX, clientY) => {
+    if (isEditing) return;
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
+    if (swipedMember !== member) setSwipedMember(null);
+  };
+  const moveDrag = (clientX, clientY) => {
+    if (!drag.active) return;
+    const diffX = clientX - drag.startX;
+    const diffY = Math.abs(clientY - drag.startY);
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
+      setDrag((prev) => ({ ...prev, scrolling: true }));
+    }
+    if (drag.scrolling) return;
+    setDrag((prev) => ({ ...prev, offset: diffX }));
+  };
+  const endDrag = () => {
+    if (!drag.active) return;
+    if (!drag.scrolling) {
+      if (currentOffset < -35) setSwipedMember(member);
+      else setSwipedMember(null);
+    }
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
+  };
+
+  const toggleEdit = () => {
+    if (!isEditing) setSwipedMember(null);
+    setIsEditing(!isEditing);
+  };
+
+  return (
+    <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center">
+        <button
+          onClick={() => {
+            onRemove(member, hasDebt);
+            setSwipedMember(null);
+          }}
+          className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${
+            hasDebt
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-red-500 text-white hover:bg-red-600"
+          }`}
+          style={{
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active
+              ? "none"
+              : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div
+        className="relative z-10 flex cursor-grab touch-pan-y items-center justify-between bg-gray-800 p-3 active:cursor-grabbing"
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active
+            ? "none"
+            : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          borderTopRightRadius: isSwiped ? "24px" : "0px",
+          borderBottomRightRadius: isSwiped ? "24px" : "0px",
+        }}
+        onTouchStart={(e) =>
+          startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchMove={(e) =>
+          moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchEnd={endDrag}
+        onMouseDown={(e) => {
+          isMouse.current = true;
+          startDrag(e.clientX, e.clientY);
+        }}
+        onMouseMove={(e) => {
+          if (isMouse.current) moveDrag(e.clientX, e.clientY);
+        }}
+        onMouseUp={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+        onMouseLeave={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+      >
+        <span className="font-medium text-gray-100">{member}</span>
+        <button
+          onClick={toggleEdit}
+          className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded"
+        >
+          <Edit2 size={16} />
+        </button>
+      </div>
+
+      {isEditing && (
+        <div className="border-t border-gray-700 bg-gray-900/80 p-3 space-y-3">
+          <div>
+            <label className="mb-1 block text-[10px] text-gray-400">
+              เบอร์พร้อมเพย์ (เว้นว่างได้)
+            </label>
+            <input
+              type="text"
+              value={form.promptpay}
+              onChange={(e) => setForm({ ...form, promptpay: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+              placeholder="เช่น 0812345678"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                ธนาคาร (หลัก)
+              </label>
+              <select
+                value={form.bankId}
+                onChange={(e) => setForm({ ...form, bankId: e.target.value })}
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+              >
+                {BANKS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                เลขบัญชี
+              </label>
+              <input
+                type="text"
+                value={form.bankAcc}
+                onChange={(e) => setForm({ ...form, bankAcc: e.target.value })}
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                placeholder="เลขบัญชี..."
+              />
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              onUpdateDetails(member, form);
+              setIsEditing(false);
+            }}
+            className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+          >
+            <Save size={16} /> บันทึกข้อมูล
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ----------------------------------------
 // Component: MemberModal (จัดการสมาชิก)
 // ----------------------------------------
-function MemberModal({ members, balances, onClose, onAdd, onRemove }) {
+function MemberModal({
+  members,
+  balances,
+  memberDetails,
+  onClose,
+  onAdd,
+  onRemove,
+  onUpdateDetails,
+}) {
   const [newName, setNewName] = useState("");
+  const [showNewPayForm, setShowNewPayForm] = useState(false);
+  const [newPayForm, setNewPayForm] = useState({
+    promptpay: "",
+    bankId: "kbank",
+    bankAcc: "",
+  });
+  const [swipedMember, setSwipedMember] = useState(null);
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -104,65 +367,127 @@ function MemberModal({ members, balances, onClose, onAdd, onRemove }) {
     e.preventDefault();
     const trimmed = newName.trim();
     if (trimmed) {
-      onAdd(trimmed);
+      onAdd(trimmed, showNewPayForm ? newPayForm : null);
       setNewName("");
-      onClose();
+      setShowNewPayForm(false);
+      setNewPayForm({ promptpay: "", bankId: "kbank", bankAcc: "" });
     }
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm transition-all"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSwipedMember(null);
+        }}
       >
         <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
           <h2 className="flex items-center gap-2 font-bold">
             <Users size={20} /> จัดการสมาชิกทริป
           </h2>
-          <button onClick={onClose} className="hover:text-lime-300">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-lime-300"
+          >
             <X size={24} />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          <form onSubmit={handleAdd} className="mb-6 flex gap-2">
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="พิมพ์ชื่อเพื่อน..."
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!newName.trim()}
-              className="flex items-center gap-1 rounded-lg bg-lime-400 px-4 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 disabled:opacity-50"
-            >
-              <UserPlus size={16} /> เพิ่ม
-            </button>
-          </form>
-          <div className="space-y-2">
-            <p className="mb-2 text-xs font-bold text-gray-400">สมาชิกปัจจุบัน ({members.length})</p>
-            {members.map((member) => {
-              const memberBalance = balances.find((b) => b.member === member)?.balance || 0;
-              const hasDebt = Math.abs(memberBalance) > 0.01;
-              return (
-                <div key={member} className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 p-3">
-                  <span className="font-medium text-gray-100">{member}</span>
-                  <button
-                    onClick={() => onRemove(member, hasDebt)}
-                    className={`rounded p-1.5 transition ${
-                      hasDebt ? "cursor-not-allowed text-gray-600" : "text-red-500 hover:bg-red-500/20"
-                    }`}
-                    title={hasDebt ? "ลบไม่ได้ มียอดค้างชำระ" : "ลบสมาชิก"}
+
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          onScroll={() => setSwipedMember(null)}
+        >
+          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+            <form onSubmit={handleAdd} className="flex gap-2">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="พิมพ์ชื่อเพื่อน..."
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!newName.trim()}
+                className="flex items-center gap-1 rounded-lg bg-lime-400 px-4 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 disabled:opacity-50"
+              >
+                <UserPlus size={16} /> เพิ่ม
+              </button>
+            </form>
+
+            {!showNewPayForm ? (
+              <button
+                type="button"
+                onClick={() => setShowNewPayForm(true)}
+                className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-400 hover:text-sky-300 transition"
+              >
+                <Plus size={12} /> เพิ่มวิธีการชำระเงินให้{" "}
+                {newName || "เพื่อนใหม่"} (ตั้งค่าภายหลังได้)
+              </button>
+            ) : (
+              <div className="mt-3 space-y-2 border-t border-gray-700 pt-3">
+                <input
+                  type="text"
+                  placeholder="เบอร์พร้อมเพย์..."
+                  value={newPayForm.promptpay}
+                  onChange={(e) =>
+                    setNewPayForm({ ...newPayForm, promptpay: e.target.value })
+                  }
+                  className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                />
+                <div className="flex gap-2">
+                  <select
+                    value={newPayForm.bankId}
+                    onChange={(e) =>
+                      setNewPayForm({ ...newPayForm, bankId: e.target.value })
+                    }
+                    className="rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
                   >
-                    <Trash2 size={16} />
-                  </button>
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="เลขบัญชี..."
+                    value={newPayForm.bankAcc}
+                    onChange={(e) =>
+                      setNewPayForm({ ...newPayForm, bankAcc: e.target.value })
+                    }
+                    className="flex-1 rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                  />
                 </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="mb-2 text-xs font-bold text-gray-400">
+              ปัดซ้ายเพื่อลบสมาชิก ({members.length})
+            </p>
+            {members.map((member) => {
+              const balance =
+                balances.find((b) => b.member === member)?.balance || 0;
+              const hasDebt = Math.abs(balance) > 0.01;
+              const details = memberDetails[member] || {};
+              return (
+                <MemberItem
+                  key={member}
+                  member={member}
+                  hasDebt={hasDebt}
+                  details={details}
+                  onRemove={onRemove}
+                  onUpdateDetails={onUpdateDetails}
+                  swipedMember={swipedMember}
+                  setSwipedMember={setSwipedMember}
+                />
               );
             })}
           </div>
@@ -173,13 +498,232 @@ function MemberModal({ members, balances, onClose, onAdd, onRemove }) {
 }
 
 // ----------------------------------------
-// Component: SplitModal (Modal เลือกคนหารกลางจอ)
+// Component: PaymentModal (UI ชำระเงิน)
+// ----------------------------------------
+function PaymentModal({
+  from,
+  to,
+  amount,
+  memberDetails,
+  onUpdateDetails,
+  onClose,
+  onConfirm,
+}) {
+  const details = memberDetails[to] || {};
+  const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
+  const [form, setForm] = useState({
+    promptpay: details.promptpay || "",
+    bankId: details.bankId || "kbank",
+    bankAcc: details.bankAcc || "",
+  });
+
+  const selectedBank = BANKS.find(
+    (b) => b.id === (details.bankId || form.bankId),
+  );
+
+  const handleSaveDetails = () => {
+    onUpdateDetails(to, form);
+  };
+
+  const handleConfirmPay = async () => {
+    const result = await Swal.fire({
+      ...SWAL_THEME,
+      title: `ยืนยันการโอนเงิน`,
+      text: `คุณโอนเงิน ฿${formatMoney(amount)} ให้ ${to} เรียบร้อยแล้วใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: "โอนเรียบร้อย",
+      cancelButtonText: "ยกเลิก",
+    });
+    if (result.isConfirmed) {
+      onConfirm(from, to, amount);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-gray-800 p-4 text-center">
+          <p className="text-sm text-gray-400">ชำระเงินให้</p>
+          <h2 className="text-xl font-bold text-lime-400">{to}</h2>
+          <p className="mt-1 text-3xl font-bold text-white">
+            ฿{formatMoney(amount)}
+          </p>
+        </div>
+
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setTab("qr")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "qr" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            สแกนคิวอาร์
+          </button>
+          <button
+            onClick={() => setTab("bank")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "bank" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            คัดลอกบัญชี
+          </button>
+        </div>
+
+        <div className="p-5">
+          {tab === "qr" && (
+            <div className="flex flex-col items-center">
+              {details.promptpay ? (
+                <>
+                  <div className="mb-4 overflow-hidden rounded-lg bg-white p-2">
+                    <img
+                      src={`https://promptpay.io/${details.promptpay}/${amount}.png`}
+                      alt="PromptPay QR"
+                      className="h-48 w-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    พร้อมเพย์:{" "}
+                    <span className="font-mono text-gray-200">
+                      {details.promptpay}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลพร้อมเพย์ของ {to}
+                  </p>
+                  <input
+                    type="text"
+                    value={form.promptpay}
+                    onChange={(e) =>
+                      setForm({ ...form, promptpay: e.target.value })
+                    }
+                    placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกและสร้าง QR
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "bank" && (
+            <div className="flex flex-col">
+              {details.bankAcc ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
+                    <p className="text-xs text-gray-400">
+                      {selectedBank?.name}
+                    </p>
+                    <p className="font-mono text-lg tracking-wider text-gray-100">
+                      {details.bankAcc}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() =>
+                        openBankApp(
+                          details.bankAcc,
+                          selectedBank?.scheme,
+                          "คัดลอกเลขบัญชีแล้ว",
+                        )
+                      }
+                      className="flex flex-col items-center gap-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-xs text-gray-300 transition hover:bg-gray-700"
+                    >
+                      <Copy size={16} /> 1. ก๊อปเลขบัญชี
+                    </button>
+                    <button
+                      onClick={() =>
+                        openBankApp(
+                          amount.toString(),
+                          selectedBank?.scheme,
+                          "คัดลอกยอดเงินแล้ว",
+                        )
+                      }
+                      className="flex flex-col items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 py-3 text-xs text-sky-400 transition hover:bg-sky-500/20"
+                    >
+                      <Wallet size={16} /> 2. ก๊อปยอดเงิน
+                    </button>
+                  </div>
+                  <p className="text-center text-[10px] text-gray-500">
+                    *เมื่อกดปุ่ม ระบบจะพยายามเปิดแอปธนาคารให้อัตโนมัติ
+                  </p>
+                </div>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลบัญชีของ {to}
+                  </p>
+                  <select
+                    value={form.bankId}
+                    onChange={(e) =>
+                      setForm({ ...form, bankId: e.target.value })
+                    }
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  >
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={form.bankAcc}
+                    onChange={(e) =>
+                      setForm({ ...form, bankAcc: e.target.value })
+                    }
+                    placeholder="เลขบัญชี..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกข้อมูลบัญชี
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm font-bold text-gray-300 hover:bg-gray-700 transition"
+            >
+              ปิดหน้าต่าง
+            </button>
+            <button
+              onClick={handleConfirmPay}
+              className="flex-[2] flex items-center justify-center gap-1 rounded-lg bg-lime-400 py-3 text-sm font-bold text-gray-950 hover:bg-lime-300 transition"
+            >
+              <CheckCircle size={16} /> ยืนยันโอนสำเร็จ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------
+// Component: SplitModal (Modal เลือกคนหาร)
 // ----------------------------------------
 function SplitModal({ expense, members, onClose, onSave }) {
-  const [selectedSplit, setSelectedSplit] = useState(() => {
-    if (expense?.split_between?.length > 0) return expense.split_between;
-    return [expense?.paid_by];
-  });
+  const [selectedSplit, setSelectedSplit] = useState(() =>
+    expense?.split_between?.length > 0
+      ? expense.split_between
+      : [expense?.paid_by],
+  );
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -189,26 +733,16 @@ function SplitModal({ expense, members, onClose, onSave }) {
     return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
-  const handleToggle = (member) => {
+  const handleToggle = (member) =>
     setSelectedSplit((prev) =>
-      prev.includes(member) ? prev.filter((m) => m !== member) : [...prev, member]
+      prev.includes(member)
+        ? prev.filter((m) => m !== member)
+        : [...prev, member],
     );
-  };
-
-  const isAllSelected = selectedSplit.length === members.length && members.length > 0;
-
-  const handleToggleAll = () => {
-    if (isAllSelected) {
-      setSelectedSplit([]);
-    } else {
-      setSelectedSplit([...members]);
-    }
-  };
-
-  const handleConfirm = () => {
-    onSave(expense.id, selectedSplit);
-    onClose();
-  };
+  const isAllSelected =
+    selectedSplit.length === members.length && members.length > 0;
+  const handleToggleAll = () =>
+    isAllSelected ? setSelectedSplit([]) : setSelectedSplit([...members]);
 
   return (
     <div
@@ -221,19 +755,24 @@ function SplitModal({ expense, members, onClose, onSave }) {
       >
         <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
           <div>
-            <h3 className="font-bold text-base text-gray-100">ระบุผู้หารรายการ</h3>
+            <h3 className="font-bold text-base text-gray-100">
+              ระบุผู้หารรายการ
+            </h3>
             <p className="text-xs text-lime-400 font-medium">
               {expense.item_name} (฿{formatMoney(expense.amount)})
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-200">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-200"
+          >
             <X size={20} />
           </button>
         </div>
 
         <div className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหารในรายการนี้</p>
+            <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหาร</p>
             <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300">
               <input
                 type="checkbox"
@@ -244,14 +783,15 @@ function SplitModal({ expense, members, onClose, onSave }) {
               <span>เลือกทุกคน</span>
             </label>
           </div>
-
           <div className="mb-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
             {members.map((member) => (
               <label
                 key={member}
                 className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 p-3 transition hover:bg-gray-750"
               >
-                <span className="font-medium text-gray-100 text-sm">{member}</span>
+                <span className="font-medium text-gray-100 text-sm">
+                  {member}
+                </span>
                 <input
                   type="checkbox"
                   checked={selectedSplit.includes(member)}
@@ -261,7 +801,6 @@ function SplitModal({ expense, members, onClose, onSave }) {
               </label>
             ))}
           </div>
-
           <div className="flex gap-2">
             <button
               type="button"
@@ -272,7 +811,10 @@ function SplitModal({ expense, members, onClose, onSave }) {
             </button>
             <button
               type="button"
-              onClick={handleConfirm}
+              onClick={() => {
+                onSave(expense.id, selectedSplit);
+                onClose();
+              }}
               className="flex-1 rounded-lg bg-lime-400 py-2.5 text-xs font-bold text-gray-950 transition hover:bg-lime-300"
             >
               ตกลง
@@ -285,7 +827,7 @@ function SplitModal({ expense, members, onClose, onSave }) {
 }
 
 // ----------------------------------------
-// Component: HistoryModal
+// Component: HistoryModal (ดูประวัติ)
 // ----------------------------------------
 function HistoryModal({ expenses, onClose, onUndo }) {
   useEffect(() => {
@@ -315,21 +857,31 @@ function HistoryModal({ expenses, onClose, onUndo }) {
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {expenses.length === 0 ? (
-            <p className="py-10 text-center text-gray-400">ยังไม่มีประวัติการโอนเงิน</p>
+            <p className="py-10 text-center text-gray-400">
+              ยังไม่มีประวัติการโอนเงิน
+            </p>
           ) : (
             <div className="space-y-3">
               {expenses.map((expense) => (
-                <div key={expense.id} className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3">
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3"
+                >
                   <div>
-                    <p className="text-xs text-gray-400">{expense.expense_date}</p>
-                    <p className="font-medium text-gray-100">{expense.item_name}</p>
+                    <p className="text-xs text-gray-400">
+                      {expense.expense_date}
+                    </p>
+                    <p className="font-medium text-gray-100">
+                      {expense.item_name}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3 text-right">
-                    <p className="font-bold text-lime-400">฿{formatMoney(expense.amount)}</p>
+                    <p className="font-bold text-lime-400">
+                      ฿{formatMoney(expense.amount)}
+                    </p>
                     <button
                       onClick={() => onUndo(expense.id)}
                       className="ml-2 flex items-center gap-1 rounded-3xl border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs text-sky-400 transition hover:bg-sky-500 hover:text-gray-950"
-                      title="กู้คืนรายการนี้"
                     >
                       <RotateCcw size={14} /> กู้คืน
                     </button>
@@ -345,65 +897,132 @@ function HistoryModal({ expenses, onClose, onUndo }) {
 }
 
 // ----------------------------------------
-// Component: TripHeader
+// Component: ExpenseList & ExpenseItem
 // ----------------------------------------
-function TripHeader({ totalExpense, isSyncing, onRefresh, MEMBERS, onOpenMemberModal }) {
-  const [syncStatus, setSyncStatus] = useState("idle");
-
+function ExpenseList({
+  expenses,
+  groupedExpenses,
+  loading,
+  isExpanded,
+  collapsedDates,
+  onToggleExpanded,
+  onToggleDate,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  swipedId,
+  setSwipedId,
+}) {
   useEffect(() => {
-    if (isSyncing) setSyncStatus("syncing");
-    else if (!isSyncing && syncStatus === "syncing") setSyncStatus("success");
-  }, [isSyncing]);
-
-  useEffect(() => {
-    if (syncStatus === "success") {
-      const timer = setTimeout(() => setSyncStatus("idle"), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [syncStatus]);
+    const handleScroll = () => {
+      if (swipedId) setSwipedId(null);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [swipedId, setSwipedId]);
 
   return (
-    <header className="sticky top-0 z-30 bg-gray-900 p-4 text-gray-100 shadow-md">
-      <div className="relative mx-auto max-w-md text-center">
+    <section className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-bold text-gray-100">
+          <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>
+        </div>
         <button
-          onClick={onOpenMemberModal}
-          className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"
-          title="จัดการสมาชิก"
+          onClick={onToggleExpanded}
+          className="flex items-center gap-1 rounded-full bg-gray-800 px-3 py-1.5 text-xs text-gray-300 shadow-sm"
         >
-          <Users size={16} className="text-lime-400" />
-          <span className="text-xs font-bold text-gray-300">{MEMBERS.length}</span>
+          {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{" "}
+          {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
         </button>
-        <button
-          onClick={onRefresh}
-          disabled={syncStatus === "syncing"}
-          className="absolute right-0 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
-        >
-          {syncStatus === "syncing" ? (
-            <RefreshCw size={20} className="animate-spin text-gray-400" />
-          ) : syncStatus === "success" ? (
-            <Check size={20} className="animate-draw text-lime-400" />
-          ) : (
-            <RefreshCw size={20} className="text-gray-300 transition" />
-          )}
-        </button>
-        <p className="mt-1 text-sm font-light opacity-80">ยอดรวมค่าใช้จ่ายทั้งทริป</p>
-        <h1 className="my-1 text-4xl font-bold">฿{formatMoney(totalExpense)}</h1>
       </div>
-    </header>
+
+      {loading ? (
+        <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
+      ) : expenses.length === 0 ? (
+        <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
+      ) : (
+        <div
+          className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}
+        >
+          {Object.keys(groupedExpenses).map((date) => (
+            <div
+              key={date}
+              className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-sm"
+            >
+              <button
+                onClick={() => onToggleDate(date)}
+                className="relative z-20 flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600"
+              >
+                <div className="flex items-center gap-2 font-bold text-gray-100">
+                  {collapsedDates[date] ? (
+                    <FolderClosed size={16} className="text-lime-400" />
+                  ) : (
+                    <FolderOpen size={16} className="text-lime-400" />
+                  )}
+                  <span>{date}</span>
+                  <span className="rounded-full bg-gray-600 px-2 py-0.5 text-xs font-normal text-gray-300">
+                    {groupedExpenses[date].length}
+                  </span>
+                </div>
+                {collapsedDates[date] ? (
+                  <ChevronRight size={18} className="text-lime-400" />
+                ) : (
+                  <ChevronDown size={18} className="text-lime-400" />
+                )}
+              </button>
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
+              >
+                <div className="overflow-hidden bg-gray-900">
+                  {groupedExpenses[date].map((expense, index) => (
+                    <ExpenseItem
+                      key={expense.id}
+                      expense={expense}
+                      swipedId={swipedId}
+                      setSwipedId={setSwipedId}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onOpenSplitModal={onOpenSplitModal}
+                      isLast={index === groupedExpenses[date].length - 1}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-// ----------------------------------------
-// Component: ExpenseItem
-// ----------------------------------------
-function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenSplitModal, members, isLast }) {
-  const [drag, setDrag] = useState({ active: false, startX: 0, startY: 0, offset: 0, scrolling: false });
+function ExpenseItem({
+  expense,
+  swipedId,
+  setSwipedId,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  isLast,
+}) {
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
   const isMouse = useRef(false);
 
-  const splitList = expense.split_between?.length > 0 ? expense.split_between : [expense.paid_by];
+  const splitList =
+    expense.split_between?.length > 0
+      ? expense.split_between
+      : [expense.paid_by];
   const isGas = expense.category === "ค่าน้ำมัน";
-  const hasOdometer = isGas && expense.odometer_start && expense.odometer_end;
-  const distance = hasOdometer ? Number(expense.odometer_end) - Number(expense.odometer_start) : 0;
+  const distance =
+    isGas && expense.odometer_start && expense.odometer_end
+      ? Number(expense.odometer_end) - Number(expense.odometer_start)
+      : 0;
 
   const isOpen = swipedId === expense.id;
   let currentOffset = isOpen ? -70 : 0;
@@ -415,16 +1034,21 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
   const isSwiped = currentOffset < -5;
 
   const startDrag = (clientX, clientY) => {
-    setDrag({ active: true, startX: clientX, startY: clientY, offset: 0, scrolling: false });
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
     if (swipedId !== expense.id) setSwipedId(null);
   };
   const moveDrag = (clientX, clientY) => {
     if (!drag.active) return;
-    const diffX = clientX - drag.startX;
-    const diffY = Math.abs(clientY - drag.startY);
-    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
+    const diffX = clientX - drag.startX,
+      diffY = Math.abs(clientY - drag.startY);
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15)
       setDrag((prev) => ({ ...prev, scrolling: true }));
-    }
     if (drag.scrolling) return;
     setDrag((prev) => ({ ...prev, offset: diffX }));
   };
@@ -434,11 +1058,19 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
       if (currentOffset < -35) setSwipedId(expense.id);
       else setSwipedId(null);
     }
-    setDrag({ active: false, startX: 0, startY: 0, offset: 0, scrolling: false });
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
   };
 
   return (
-    <div className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}>
+    <div
+      className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
+    >
       <div className="absolute inset-y-0 right-3 flex items-center justify-center">
         <button
           onClick={() => {
@@ -447,9 +1079,11 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
           }}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
           style={{
-            opacity: currentOffset < -20 ? 1 : 0,
-            transform: `scale(${currentOffset < -40 ? 1 : 0.5})`,
-            transition: drag.active ? "none" : "all 0.25s ease-out",
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active
+              ? "none"
+              : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
           <Trash2 size={20} />
@@ -460,12 +1094,18 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
         className="relative z-10 flex cursor-grab touch-pan-y items-center justify-between bg-gray-800 p-3 pl-8 active:cursor-grabbing"
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,
-          transition: drag.active ? "none" : "all 0.25s ease-out",
+          transition: drag.active
+            ? "none"
+            : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           borderTopRightRadius: isSwiped ? "24px" : "0px",
           borderBottomRightRadius: isSwiped ? "24px" : "0px",
         }}
-        onTouchStart={(e) => startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
-        onTouchMove={(e) => moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
+        onTouchStart={(e) =>
+          startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchMove={(e) =>
+          moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
         onTouchEnd={endDrag}
         onMouseDown={(e) => {
           isMouse.current = true;
@@ -489,23 +1129,30 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
       >
         <div className="pointer-events-none flex-1">
           <p className="mb-0.5 text-xs text-gray-400">
-            จ่ายโดย: <span className="font-bold text-lime-400">{expense.paid_by}</span>
+            จ่ายโดย:{" "}
+            <span className="font-bold text-lime-400">{expense.paid_by}</span>
           </p>
           <p className="font-medium text-gray-100">{expense.item_name}</p>
           <p className="text-xs text-gray-400">
             {expense.category}{" "}
             {splitList.length > 0 && (
-              <span className="text-[10px] text-sky-400"> (หาร {splitList.length} คน)</span>
+              <span className="text-[10px] text-sky-400">
+                {" "}
+                (หาร {splitList.length} คน)
+              </span>
             )}
           </p>
-          {hasOdometer && (
+          {distance > 0 && (
             <p className="mt-0.5 text-[11px] font-medium text-amber-400">
-              ไมล์ {expense.odometer_start} - {expense.odometer_end} ({distance} กม.)
+              ไมล์ {expense.odometer_start} - {expense.odometer_end} ({distance}{" "}
+              กม.)
             </p>
           )}
         </div>
         <div className="flex items-center gap-3">
-          <p className="pointer-events-none font-bold text-gray-100">฿{formatMoney(expense.amount)}</p>
+          <p className="pointer-events-none font-bold text-gray-100">
+            ฿{formatMoney(expense.amount)}
+          </p>
           <div className="relative z-20 flex gap-2">
             <button
               onClick={(e) => {
@@ -513,7 +1160,6 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
                 onOpenSplitModal(expense);
               }}
               className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:text-sky-400"
-              title="เลือกคนหาร"
             >
               <Plus size={14} />
             </button>
@@ -535,152 +1181,11 @@ function ExpenseItem({ expense, swipedId, setSwipedId, onEdit, onDelete, onOpenS
 }
 
 // ----------------------------------------
-// Component: ExpenseList
-// ----------------------------------------
-function ExpenseList({
-  expenses,
-  groupedExpenses,
-  loading,
-  isExpanded,
-  collapsedDates,
-  onToggleExpanded,
-  onToggleDate,
-  onEdit,
-  onDelete,
-  onOpenSplitModal,
-  members,
-  swipedId,
-  setSwipedId,
-}) {
-  return (
-    <section className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-bold text-gray-100">
-          <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>
-        </div>
-        <button
-          onClick={onToggleExpanded}
-          className="flex items-center gap-1 rounded-full bg-gray-800 px-3 py-1.5 text-xs text-gray-300 shadow-sm"
-        >
-          {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{" "}
-          {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
-        </button>
-      </div>
-
-      {loading ? (
-        <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
-      ) : expenses.length === 0 ? (
-        <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
-      ) : (
-        <div className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}>
-          {Object.keys(groupedExpenses).map((date) => (
-            <div key={date} className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-sm">
-              <button
-                onClick={() => onToggleDate(date)}
-                className="relative z-20 flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600"
-              >
-                <div className="flex items-center gap-2 font-bold text-gray-100">
-                  {collapsedDates[date] ? <FolderClosed size={16} className="text-lime-400" /> : <FolderOpen size={16} className="text-lime-400" />}
-                  <span>{date}</span>
-                  <span className="rounded-full bg-gray-600 px-2 py-0.5 text-xs font-normal text-gray-300">
-                    {groupedExpenses[date].length} รายการ
-                  </span>
-                </div>
-                {collapsedDates[date] ? <ChevronRight size={18} className="text-lime-400" /> : <ChevronDown size={18} className="text-lime-400" />}
-              </button>
-
-              <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  collapsedDates[date] ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
-                }`}
-              >
-                <div className="overflow-hidden bg-gray-900">
-                  {groupedExpenses[date].map((expense, index) => (
-                    <ExpenseItem
-                      key={expense.id}
-                      expense={expense}
-                      swipedId={swipedId}
-                      setSwipedId={setSwipedId}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                      onOpenSplitModal={onOpenSplitModal}
-                      members={members}
-                      formatMoney={formatMoney}
-                      isLast={index === groupedExpenses[date].length - 1}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ----------------------------------------
-// Component: SettlementCard
-// ----------------------------------------
-function SettlementCard({ settlements, onSettle }) {
-  return (
-    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between font-bold text-lime-400">
-        <div className="flex items-center gap-2">
-          <Users size={20} /> <h2>สรุปเคลียร์เงิน</h2>
-        </div>
-      </div>
-      <div className="mb-6 space-y-2">
-        {settlements.transfers.length === 0 ? (
-          <p className="py-2 text-center text-sm text-gray-400">ทุกคนเคลียร์เงินครบแล้ว</p>
-        ) : (
-          settlements.transfers.map((transfer) => (
-            <div key={`${transfer.from}-${transfer.to}`} className="rounded-lg border border-lime-900 bg-gray-800 p-3">
-              <div className="mb-2 flex items-center justify-between p-2">
-                <div className="flex items-center gap-2 font-medium">
-                  <span className="text-gray-100">{transfer.from}</span>
-                  <ArrowRight size={16} className="text-gray-400" />
-                  <span className="text-gray-100">{transfer.to}</span>
-                </div>
-                <div className="font-bold text-lime-400">฿{formatMoney(transfer.amount)}</div>
-              </div>
-              <button
-                onClick={() => onSettle(transfer.from, transfer.to, transfer.amount)}
-                className="m-auto flex w-10/12 items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
-              >
-                <CheckCircle size={14} /> เคลียร์ยอดนี้
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-      <hr className="my-4 border-gray-800" />
-      <div className="space-y-3">
-        <p className="mb-2 text-xs font-bold text-gray-400">สรุปยอดสุทธิแต่ละคน</p>
-        {settlements.balances.map((balance) => (
-          <div key={balance.member} className="flex items-center justify-between text-sm">
-            <span className="font-medium text-gray-100">{balance.member}</span>
-            <div className="text-right">
-              {balance.balance > 0.01 ? (
-                <span className="font-bold text-lime-400">(ได้คืน ฿{formatMoney(balance.balance)})</span>
-              ) : balance.balance < -0.01 ? (
-                <span className="font-bold text-red-500">(ติดลบ ฿{formatMoney(Math.abs(balance.balance))})</span>
-              ) : (
-                <span className="font-bold text-gray-400">(พอดี)</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ----------------------------------------
 // Component: App (Main)
 // ----------------------------------------
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
+  const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
   const [paidBy, setPaidBy] = useState(() => {
     const saved = localStorage.getItem("defaultPaidBy");
     return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0];
@@ -693,6 +1198,7 @@ export default function App() {
   const [collapsedDates, setCollapsedDates] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
+  const [activePayment, setActivePayment] = useState(null);
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
   const [editId, setEditId] = useState(null);
   const [swipedId, setSwipedId] = useState(null);
@@ -702,21 +1208,34 @@ export default function App() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
 
-  // 🧠 สเตตและการจำค่าของค่าน้ำมัน
-  const [odometerStart, setOdometerStart] = useState(() => localStorage.getItem("lastOdometerEnd") || "");
+  const [odometerStart, setOdometerStart] = useState(
+    () => localStorage.getItem("lastOdometerEnd") || "",
+  );
   const [odometerEnd, setOdometerEnd] = useState("");
-  const [fuelPrice, setFuelPrice] = useState(() => localStorage.getItem("lastFuelPrice") || "");
-  const [fuelConsumption, setFuelConsumption] = useState(() => localStorage.getItem("lastFuelConsumption") || "");
+  const [fuelPrice, setFuelPrice] = useState(
+    () => localStorage.getItem("lastFuelPrice") || "",
+  );
+  const [fuelConsumption, setFuelConsumption] = useState(
+    () => localStorage.getItem("lastFuelConsumption") || "",
+  );
 
-  // ประวัติ Scroll to top
   const [isPressing, setIsPressing] = useState(false);
   const pressTimer = useRef(null);
   const hasScrolled = useRef(false);
 
   const refreshExpenses = useCallback(async () => {
     setIsSyncing(true);
-    const { data, error } = await supabase.from("trip_expenses").select("*").order("created_at", { ascending: false });
-    if (error) Swal.fire({ ...SWAL_THEME, icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
+    const { data, error } = await supabase
+      .from("trip_expenses")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error)
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "error",
+        title: "โหลดข้อมูลไม่สำเร็จ",
+        text: error.message,
+      });
     else if (data) setExpenses(data);
     setTimeout(() => setIsSyncing(false), 500);
   }, []);
@@ -725,12 +1244,21 @@ export default function App() {
     refreshExpenses().then(() => setLoading(false));
     const subscription = supabase
       .channel("trip_expenses_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, refreshExpenses)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "trip_expenses" },
+        refreshExpenses,
+      )
       .subscribe();
     return () => supabase.removeChannel(subscription);
   }, [refreshExpenses]);
 
-  const handleAddMember = (name) => {
+  // หุบ Swipe อัตโนมัติเมื่อกดพื้นที่ว่าง
+  const handleAppClick = () => {
+    if (swipedId) setSwipedId(null);
+  };
+
+  const handleAddMember = (name, details) => {
     if (!MEMBERS.includes(name)) {
       const newMembers = [...MEMBERS, name];
       setMembers(newMembers);
@@ -738,6 +1266,9 @@ export default function App() {
       setPaidBy(name);
       localStorage.setItem("defaultPaidBy", name);
 
+      if (details) {
+        handleUpdateMemberDetails(name, details, false);
+      }
       Swal.fire({
         ...SWAL_THEME,
         icon: "success",
@@ -748,32 +1279,42 @@ export default function App() {
     }
   };
 
+  const handleUpdateMemberDetails = (name, details, showToast = true) => {
+    const updated = { ...memberDetails, [name]: details };
+    setMemberDetails(updated);
+    localStorage.setItem("memberDetails", JSON.stringify(updated));
+    if (showToast)
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "success",
+        title: "บันทึกข้อมูลเรียบร้อย",
+        timer: 700,
+        showConfirmButton: false,
+      });
+  };
+
   const handleRemoveMember = async (name, hasDebt) => {
-    if (MEMBERS.length <= 1) {
+    if (MEMBERS.length <= 1)
       return Swal.fire({
         ...SWAL_THEME,
         icon: "warning",
-        title: "ไม่สามารถลบได้",
+        title: "ลบไม่ได้",
         text: "ต้องมีสมาชิกอย่างน้อย 1 คน",
-        confirmButtonText: "ตกลง",
       });
-    }
-    if (hasDebt) {
+    if (hasDebt)
       return Swal.fire({
         ...SWAL_THEME,
         icon: "error",
-        title: "ไม่สามารถลบสมาชิกได้",
-        text: `${name} ยังมียอดค้างชำระอยู่ กรุณาเคลียร์ยอดเงินก่อน`,
-        confirmButtonText: "เข้าใจแล้ว",
+        title: "ลบไม่ได้",
+        text: `${name} มียอดค้างชำระอยู่`,
       });
-    }
 
     const result = await Swal.fire({
       ...SWAL_THEME,
-      title: "ยืนยันการลบสมาชิก",
-      text: `ต้องการลบ ${name} ออกจากทริปใช่หรือไม่?`,
+      title: "ยืนยันการลบ",
+      text: `ลบ ${name} ออกจากทริป?`,
       showCancelButton: true,
-      confirmButtonText: "ลบสมาชิก",
+      confirmButtonText: "ลบ",
       cancelButtonText: "ยกเลิก",
       customClass: {
         ...SWAL_THEME.customClass,
@@ -781,33 +1322,27 @@ export default function App() {
           "bg-red-500 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-600 transition text-sm cursor-pointer",
       },
     });
-
     if (!result.isConfirmed) return;
 
     const newMembers = MEMBERS.filter((m) => m !== name);
     setMembers(newMembers);
     localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+    const newDetails = { ...memberDetails };
+    delete newDetails[name];
+    setMemberDetails(newDetails);
+    localStorage.setItem("memberDetails", JSON.stringify(newDetails));
+
     if (paidBy === name) {
       setPaidBy(newMembers[0]);
       localStorage.setItem("defaultPaidBy", newMembers[0]);
     }
-
     Swal.fire({
       ...SWAL_THEME,
       icon: "success",
-      title: `ลบ ${name} เรียบร้อยแล้ว`,
+      title: `ลบ ${name} แล้ว`,
       timer: 500,
       showConfirmButton: false,
     });
-  };
-
-  const handlePaidByChange = (value) => {
-    if (value === "__ADD_NEW__") {
-      setShowMemberModal(true);
-    } else {
-      setPaidBy(value);
-      localStorage.setItem("defaultPaidBy", value);
-    }
   };
 
   const handleAddExpense = async (event) => {
@@ -817,9 +1352,7 @@ export default function App() {
       return Swal.fire({
         ...SWAL_THEME,
         icon: "warning",
-        title: "แจ้งเตือน",
-        text: "กรุณากรอกจำนวนเงินให้ถูกต้อง",
-        confirmButtonText: "ตกลง",
+        title: "กรุณากรอกจำนวนเงิน",
       });
 
     const payload = {
@@ -829,61 +1362,55 @@ export default function App() {
       category,
       paid_by: paidBy,
       split_between: [paidBy],
-      odometer_start: category === "ค่าน้ำมัน" && odometerStart ? Number(odometerStart) : null,
-      odometer_end: category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
+      odometer_start:
+        category === "ค่าน้ำมัน" && odometerStart
+          ? Number(odometerStart)
+          : null,
+      odometer_end:
+        category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
 
     if (editId) {
-      const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
-      if (error)
-        return Swal.fire({ ...SWAL_THEME, icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
+      await supabase.from("trip_expenses").update(payload).eq("id", editId);
       setEditId(null);
     } else {
-      const { error } = await supabase.from("trip_expenses").insert([payload]);
-      if (error)
-        return Swal.fire({ ...SWAL_THEME, icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
+      await supabase.from("trip_expenses").insert([payload]);
     }
 
-    // 🧠 บันทึกค่าล่าสุดของค่าน้ำมันลง localStorage
     if (category === "ค่าน้ำมัน") {
       if (odometerEnd) localStorage.setItem("lastOdometerEnd", odometerEnd);
       if (fuelPrice) localStorage.setItem("lastFuelPrice", fuelPrice);
-      if (fuelConsumption) localStorage.setItem("lastFuelConsumption", fuelConsumption);
+      if (fuelConsumption)
+        localStorage.setItem("lastFuelConsumption", fuelConsumption);
     }
-
     await refreshExpenses();
     setItem("");
     setAmount("");
-    setCategory(CATEGORIES[0]); // 🧠 เปลี่ยนกลับเป็น "ค่าอาหาร" ตั้งต้น
+    setCategory(CATEGORIES[0]);
     setOdometerStart(localStorage.getItem("lastOdometerEnd") || "");
     setOdometerEnd("");
-
     Swal.fire({
       ...SWAL_THEME,
       icon: "success",
-      title: editId ? "แก้ไขรายการสำเร็จ" : "บันทึกรายการสำเร็จ",
+      title: editId ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
       timer: 1000,
       showConfirmButton: false,
     });
   };
 
   const handleUpdateSplit = async (id, newSplit) => {
-    const { error } = await supabase.from("trip_expenses").update({ split_between: newSplit }).eq("id", id);
+    const { error } = await supabase
+      .from("trip_expenses")
+      .update({ split_between: newSplit })
+      .eq("id", id);
     if (error)
-      Swal.fire({ ...SWAL_THEME, icon: "error", title: "อัปเดตผู้หารไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "error",
+        title: "อัปเดตผู้หารไม่สำเร็จ",
+        text: error.message,
+      });
     else await refreshExpenses();
-  };
-
-  const handleEdit = (expense) => {
-    setEditId(expense.id);
-    setDate(parseForUI(expense.expense_date));
-    setPaidBy(expense.paid_by);
-    setItem(expense.item_name);
-    setAmount(expense.amount);
-    setCategory(expense.category);
-    setOdometerStart(expense.odometer_start || localStorage.getItem("lastOdometerEnd") || "");
-    setOdometerEnd(expense.odometer_end || "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
@@ -895,67 +1422,6 @@ export default function App() {
     setOdometerEnd("");
   };
 
-  const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      ...SWAL_THEME,
-      title: "ยืนยันการลบรายการ",
-      text: "ต้องการลบรายการนี้ออกจากทริปใช่หรือไม่?",
-      showCancelButton: true,
-      confirmButtonText: "ลบรายการ",
-      cancelButtonText: "ยกเลิก",
-      customClass: {
-        ...SWAL_THEME.customClass,
-        confirmButton:
-          "bg-red-500 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-600 transition text-sm cursor-pointer",
-      },
-    });
-
-    if (!result.isConfirmed) return;
-
-    const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
-    if (error)
-      Swal.fire({ ...SWAL_THEME, icon: "error", title: "ลบไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
-    else await refreshExpenses();
-  };
-
-  const handleUndoHistory = async (id) => {
-    const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
-    if (error)
-      Swal.fire({ ...SWAL_THEME, icon: "error", title: "กู้คืนไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
-    else await refreshExpenses();
-  };
-
-  const handleSettleDebt = async (from, to, settleAmount) => {
-    const qrUrl = QR_IMAGES[to] || "https://placehold.co/250x250?text=No+QR+Code";
-    const result = await Swal.fire({
-      ...SWAL_THEME,
-      title: `โอนเงินให้ ${to}`,
-      text: `ยอดเงิน ฿${settleAmount.toLocaleString()}`,
-      imageUrl: qrUrl,
-      imageWidth: 250,
-      imageHeight: 250,
-      showCancelButton: true,
-      confirmButtonText: "ยืนยันโอนแล้ว",
-      cancelButtonText: "ยกเลิก",
-    });
-
-    if (!result.isConfirmed) return;
-
-    const today = new Date();
-    const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
-
-    const { error } = await supabase.from("trip_expenses").insert([{
-      expense_date: formattedDate,
-      item_name: `[เคลียร์ยอด] ${from} -> ${to}`,
-      amount: settleAmount,
-      category: HISTORY_CATEGORY,
-      paid_by: from,
-    }]);
-    if (error)
-      return Swal.fire({ ...SWAL_THEME, icon: "error", title: "บันทึกการโอนไม่สำเร็จ", text: error.message, confirmButtonText: "ตกลง" });
-    await refreshExpenses();
-  };
-
   const startPressTimer = () => {
     hasScrolled.current = false;
     setIsPressing(true);
@@ -963,49 +1429,68 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       hasScrolled.current = true;
       setIsPressing(false);
-    }, 700);
+    }, 400);
   };
   const cancelPressTimer = () => {
     clearTimeout(pressTimer.current);
     setIsPressing(false);
   };
-  const handleHistoryClick = () => {
-    if (!hasScrolled.current) setShowHistory(true);
+
+  const handleSettleDebt = async (from, to, settleAmount) => {
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+    await supabase
+      .from("trip_expenses")
+      .insert([
+        {
+          expense_date: formattedDate,
+          item_name: `[เคลียร์ยอด] ${from} -> ${to}`,
+          amount: settleAmount,
+          category: HISTORY_CATEGORY,
+          paid_by: from,
+        },
+      ]);
+    setActivePayment(null);
+    await refreshExpenses();
   };
 
-  const regularExpenses = expenses.filter((e) => e.category !== HISTORY_CATEGORY);
-  const historyExpenses = expenses.filter((e) => e.category === HISTORY_CATEGORY);
-  const groupedExpenses = useMemo(() =>
-    regularExpenses.reduce((groups, expense) => {
-      (groups[expense.expense_date] ||= []).push(expense);
-      return groups;
-    }, {}),
-  [regularExpenses]);
-  const totalExpense = useMemo(() => regularExpenses.reduce((sum, e) => sum + Number(e.amount), 0), [regularExpenses]);
+  const regularExpenses = expenses.filter(
+    (e) => e.category !== HISTORY_CATEGORY,
+  );
+  const historyExpenses = expenses.filter(
+    (e) => e.category === HISTORY_CATEGORY,
+  );
+  const groupedExpenses = useMemo(
+    () =>
+      regularExpenses.reduce((groups, expense) => {
+        (groups[expense.expense_date] ||= []).push(expense);
+        return groups;
+      }, {}),
+    [regularExpenses],
+  );
+  const totalExpense = useMemo(
+    () => regularExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+    [regularExpenses],
+  );
 
-  // คำนวณยอดหนี้แบบระบุตัวผู้หาร (กรองเฉพาะคนที่มีชื่ออยู่ใน MEMBERS ปัจจุบันเท่านั้น)
   const settlements = useMemo(() => {
     const balances = MEMBERS.map((member) => ({ member, balance: 0 }));
-
     regularExpenses.forEach((expense) => {
-      const amount = Number(expense.amount);
       const payer = balances.find((b) => b.member === expense.paid_by);
-      if (payer) payer.balance += amount;
-
-      let splitMembers = Array.isArray(expense.split_between) && expense.split_between.length > 0
-        ? expense.split_between
-        : [expense.paid_by];
-
-      const validSplitMembers = splitMembers.filter((m) => MEMBERS.includes(m));
-      if (validSplitMembers.length > 0) {
-        const costPerPerson = amount / validSplitMembers.length;
-        validSplitMembers.forEach((m) => {
+      if (payer) payer.balance += Number(expense.amount);
+      const splitMembers =
+        Array.isArray(expense.split_between) && expense.split_between.length > 0
+          ? expense.split_between
+          : [expense.paid_by];
+      const validSplit = splitMembers.filter((m) => MEMBERS.includes(m));
+      if (validSplit.length > 0) {
+        const costPerPerson = Number(expense.amount) / validSplit.length;
+        validSplit.forEach((m) => {
           const debtor = balances.find((b) => b.member === m);
           if (debtor) debtor.balance -= costPerPerson;
         });
       }
     });
-
     historyExpenses.forEach((expense) => {
       const payer = balances.find((b) => b.member === expense.paid_by);
       if (payer) payer.balance += Number(expense.amount);
@@ -1017,43 +1502,44 @@ export default function App() {
       });
     });
 
-    const debtors = balances.filter((b) => b.balance < -0.01).map((b) => ({ ...b }));
-    const creditors = balances.filter((b) => b.balance > 0.01).map((b) => ({ ...b }));
+    const debtors = balances
+      .filter((b) => b.balance < -0.01)
+      .map((b) => ({ ...b }));
+    const creditors = balances
+      .filter((b) => b.balance > 0.01)
+      .map((b) => ({ ...b }));
     const transfers = [];
-    let debtorIndex = 0;
-    let creditorIndex = 0;
-    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
-      const debtor = debtors[debtorIndex];
-      const creditor = creditors[creditorIndex];
-      const transferAmount = Math.min(Math.abs(debtor.balance), creditor.balance);
-      if (transferAmount > 0.01) transfers.push({ from: debtor.member, to: creditor.member, amount: transferAmount });
-      debtor.balance += transferAmount;
-      creditor.balance -= transferAmount;
-      if (Math.abs(debtor.balance) < 0.01) debtorIndex++;
-      if (creditor.balance < 0.01) creditorIndex++;
+    let dIdx = 0,
+      cIdx = 0;
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      const d = debtors[dIdx],
+        c = creditors[cIdx];
+      const amt = Math.min(Math.abs(d.balance), c.balance);
+      if (amt > 0.01)
+        transfers.push({ from: d.member, to: c.member, amount: amt });
+      d.balance += amt;
+      c.balance -= amt;
+      if (Math.abs(d.balance) < 0.01) dIdx++;
+      if (c.balance < 0.01) cIdx++;
     }
     return { balances, transfers };
   }, [MEMBERS, regularExpenses, historyExpenses]);
 
-  // คำนวณปริมาณน้ำมันและประมาณการค่าน้ำมัน
-  const distanceCalc = odometerStart && odometerEnd && Number(odometerEnd) >= Number(odometerStart)
-    ? Number(odometerEnd) - Number(odometerStart)
-    : 0;
-  const litresCalc = distanceCalc > 0 && fuelConsumption && Number(fuelConsumption) > 0
-    ? (distanceCalc / Number(fuelConsumption)).toFixed(2)
-    : 0;
-  const estimatedCostCalc = litresCalc > 0 && fuelPrice && Number(fuelPrice) > 0
-    ? (litresCalc * Number(fuelPrice)).toFixed(2)
-    : 0;
-
   return (
-    <div className="relative min-h-screen bg-black pb-24 font-sans text-gray-100" onClick={() => setSwipedId(null)}>
+    <div
+      className="relative min-h-screen bg-black pb-24 font-sans text-gray-100"
+      onClick={handleAppClick}
+    >
       <style>{`
-        @keyframes drawRing {
-          0% { stroke-dashoffset: 176; }
-          100% { stroke-dashoffset: 0; }
-        }
+        @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
+        .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
+
+      {/*  เลขเวอร์ชันมุมขวาบน จางๆ เทาๆ */}
+
+      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">
+        v2.0.0
+      </div>
 
       <TripHeader
         totalExpense={totalExpense}
@@ -1064,30 +1550,49 @@ export default function App() {
       />
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* ฟอร์มเพิ่มรายการ */}
-        <section className={`rounded-xl border p-5 shadow-sm ${editId ? "border-lime-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`} onClick={(e) => e.stopPropagation()}>
+        <section
+          className={`rounded-xl border p-5 shadow-sm ${editId ? "border-lime-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
-            {editId ? <Edit2 size={20} /> : <Receipt size={20} />}
+            {editId ? <Edit2 size={20} /> : <Receipt size={20} />}{" "}
             <h2>{editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}</h2>
           </div>
           <form onSubmit={handleAddExpense} className="space-y-3">
             <div className="flex gap-2">
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none" />
-              <button type="button" onClick={() => setDate(getTodayISO())} className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition hover:bg-lime-300">วันนี้</button>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setDate(getTodayISO())}
+                className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+              >
+                วันนี้
+              </button>
             </div>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none">
-              {CATEGORIES.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+            >
+              {CATEGORIES.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
             </select>
 
-            {/* 🧠 ส่วนกรอกค่าน้ำมัน เลขไมล์ ราคาน้ำมัน และอัตรากินน้ำมัน */}
             {category === "ค่าน้ำมัน" && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
-                  <Fuel size={14} /> บันทึกข้อมูลค่าน้ำมัน
-                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-gray-400">ไมล์เริ่มต้น</label>
+                    <label className="text-[10px] text-gray-400">
+                      ไมล์เริ่มต้น
+                    </label>
                     <input
                       type="number"
                       placeholder="ไมล์เริ่มต้น"
@@ -1097,7 +1602,9 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-400">ไมล์สิ้นสุด</label>
+                    <label className="text-[10px] text-gray-400">
+                      ไมล์สิ้นสุด
+                    </label>
                     <input
                       type="number"
                       placeholder="ไมล์สิ้นสุด"
@@ -1107,72 +1614,69 @@ export default function App() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-gray-400">ราคาน้ำมัน (บาท/ลิตร)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="เช่น 38.50"
-                      value={fuelPrice}
-                      onChange={(e) => {
-                        setFuelPrice(e.target.value);
-                        localStorage.setItem("lastFuelPrice", e.target.value);
-                      }}
-                      className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-400">อัตรากินน้ำมัน (กม./ลิตร)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="เช่น 15.0"
-                      value={fuelConsumption}
-                      onChange={(e) => {
-                        setFuelConsumption(e.target.value);
-                        localStorage.setItem("lastFuelConsumption", e.target.value);
-                      }}
-                      className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {distanceCalc > 0 && (
-                  <div className="space-y-0.5 text-right text-[11px] text-amber-300">
-                    <p>ระยะทาง: {distanceCalc} กม.</p>
-                    {litresCalc > 0 && <p>น้ำมันที่ใช้: {litresCalc} ลิตร</p>}
-                    {estimatedCostCalc > 0 && (
-                      <p className="font-bold text-amber-400">
-                        ประมาณการค่าน้ำมัน: ฿{formatMoney(estimatedCostCalc)}
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             )}
 
-            <input type="text" placeholder="ชื่อรายการ (เว้นว่างได้)" value={item} onChange={(e) => setItem(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none" />
+            <input
+              type="text"
+              placeholder="ชื่อรายการ (เว้นว่างได้)"
+              value={item}
+              onChange={(e) => setItem(e.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
+            />
             <div className="grid grid-cols-2 gap-3">
-              <input type="number" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none" />
+              <input
+                type="number"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
               <select
                 value={paidBy}
-                onChange={(e) => handlePaidByChange(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === "__ADD__") setShowMemberModal(true);
+                  else {
+                    setPaidBy(e.target.value);
+                    localStorage.setItem("defaultPaidBy", e.target.value);
+                  }
+                }}
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
               >
                 {MEMBERS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
                 ))}
-                <option value="__ADD_NEW__">+ เพิ่มคนใหม่...</option>
+                <option value="__ADD__">+ เพิ่มคนใหม่...</option>
               </select>
             </div>
+
+            {/* 🧠 แก้บั๊คฟอร์มแก้ไขให้มีปุ่มยกเลิก */}
             {editId ? (
               <div className="flex gap-2">
-                <button type="submit" className="flex-1 rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">บันทึกแก้ไข</button>
-                <button type="button" onClick={cancelEdit} className="rounded-lg bg-gray-700 px-4 py-3 font-bold text-gray-100 transition hover:bg-gray-600">ยกเลิก</button>
+                <button
+                  type="submit"
+                  className="flex-[2] rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300"
+                >
+                  บันทึกแก้ไข
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="flex-1 rounded-lg bg-gray-700 py-3 font-bold text-gray-100 transition hover:bg-gray-600"
+                >
+                  ยกเลิก
+                </button>
               </div>
             ) : (
-              <button type="submit" className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300">บันทึกรายการ</button>
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300"
+              >
+                บันทึกรายการ
+              </button>
             )}
           </form>
         </section>
@@ -1184,58 +1688,133 @@ export default function App() {
             loading={loading}
             isExpanded={isListExpanded}
             collapsedDates={collapsedDates}
-            onToggleExpanded={() => setIsListExpanded((v) => !v)}
-            onToggleDate={(val) => setCollapsedDates((d) => ({ ...d, [val]: !d[val] }))}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onOpenSplitModal={(exp) => setActiveSplitExpense(exp)}
-            members={MEMBERS}
+            onToggleExpanded={() => setIsListExpanded(!isListExpanded)}
+            onToggleDate={(val) =>
+              setCollapsedDates((d) => ({ ...d, [val]: !d[val] }))
+            }
+            onEdit={(exp) => {
+              setEditId(exp.id);
+              setDate(parseForUI(exp.expense_date));
+              setPaidBy(exp.paid_by);
+              setItem(exp.item_name);
+              setAmount(exp.amount);
+              setCategory(exp.category);
+              setOdometerStart(exp.odometer_start || "");
+              setOdometerEnd(exp.odometer_end || "");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onDelete={async (id) => {
+              const r = await Swal.fire({
+                ...SWAL_THEME,
+                title: "ยืนยันการลบ?",
+                showCancelButton: true,
+                confirmButtonText: "ลบ",
+              });
+              if (r.isConfirmed) {
+                await supabase.from("trip_expenses").delete().eq("id", id);
+                refreshExpenses();
+              }
+            }}
+            onOpenSplitModal={setActiveSplitExpense}
             swipedId={swipedId}
             setSwipedId={setSwipedId}
           />
         </div>
 
-        <SettlementCard settlements={settlements} onSettle={handleSettleDebt} />
+        <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+          <h2 className="mb-4 flex items-center gap-2 font-bold text-lime-400">
+            <Users size={20} /> สรุปเคลียร์เงิน
+          </h2>
+          <div className="space-y-2">
+            {settlements.transfers.length === 0 ? (
+              <p className="py-2 text-center text-sm text-gray-400">
+                ทุกคนเคลียร์เงินครบแล้ว
+              </p>
+            ) : (
+              settlements.transfers.map((t) => (
+                <div
+                  key={`${t.from}-${t.to}`}
+                  className="rounded-lg border border-lime-900 bg-gray-800 p-3"
+                >
+                  <div className="mb-2 flex justify-between p-2">
+                    <div className="flex gap-2 font-medium">
+                      <span className="text-gray-100">{t.from}</span>
+                      <ArrowRight size={16} className="text-gray-400" />
+                      <span className="text-gray-100">{t.to}</span>
+                    </div>
+                    <div className="font-bold text-lime-400">
+                      ฿{formatMoney(t.amount)}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActivePayment(t)}
+                    className="m-auto flex w-10/12 items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
+                  >
+                    <CheckCircle size={14} /> เคลียร์ยอดนี้
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </main>
 
-      {/* ปุ่มประวัติมุมล่างขวา */}
       <div className="fixed bottom-10 right-6 z-40 flex items-center justify-center">
         {isPressing && (
-          <svg className="absolute inset-0 h-[68px] w-[68px] -translate-x-[2px] -translate-y-[2px] -rotate-90 pointer-events-none" viewBox="0 0 64 64">
-            <circle cx="32" cy="32" r="28" stroke="#D7FF3B" strokeWidth="4" fill="none"
+          <svg
+            className="absolute inset-0 h-[68px] w-[68px] -translate-x-[2px] -translate-y-[2px] -rotate-90 pointer-events-none"
+            viewBox="0 0 64 64"
+          >
+            <circle
+              cx="32"
+              cy="32"
+              r="28"
+              stroke="#D7FF3B"
+              strokeWidth="4"
+              fill="none"
               strokeDasharray="176"
               strokeDashoffset="176"
-              className="animate-[drawRing_0.7s_linear_forwards]"
+              className="animate-draw-fast"
             />
           </svg>
         )}
         <button
-          onClick={handleHistoryClick}
+          onClick={() => {
+            if (!hasScrolled.current) setShowHistory(true);
+          }}
           onMouseEnter={startPressTimer}
           onMouseLeave={cancelPressTimer}
           onTouchStart={startPressTimer}
           onTouchEnd={cancelPressTimer}
-          className={`flex h-16 w-16 items-center justify-center rounded-full text-gray-950 shadow-xl shadow-lime-500/10 ${
-            isPressing
-              ? "scale-125 bg-amber-700 transition-all duration-700 ease-linear"
-              : "scale-100 bg-amber-500 transition-all duration-200 ease-out hover:bg-amber-600"
-          }`}
-          title="ดูประวัติการเคลียร์เงิน หรือกดค้างเพื่อขึ้นบนสุด"
+          className={`flex h-16 w-16 items-center justify-center rounded-full text-gray-950 shadow-xl transition-all duration-200 ${isPressing ? "scale-110 bg-amber-700" : "bg-amber-500 hover:bg-amber-600"}`}
         >
           <History size={28} />
         </button>
       </div>
 
+      {/* 🧠 นำ Modal กลับมาแสดงผลให้ถูกต้อง */}
       {showMemberModal && (
         <MemberModal
           members={MEMBERS}
           balances={settlements.balances}
+          memberDetails={memberDetails}
           onClose={() => setShowMemberModal(false)}
           onAdd={handleAddMember}
           onRemove={handleRemoveMember}
+          onUpdateDetails={handleUpdateMemberDetails}
         />
       )}
-
+      {activePayment && (
+        <PaymentModal
+          from={activePayment.from}
+          to={activePayment.to}
+          amount={activePayment.amount}
+          memberDetails={memberDetails}
+          onClose={() => setActivePayment(null)}
+          onUpdateDetails={handleUpdateMemberDetails}
+          onConfirm={handleSettleDebt}
+        />
+      )}
       {activeSplitExpense && (
         <SplitModal
           expense={activeSplitExpense}
@@ -1244,19 +1823,68 @@ export default function App() {
           onSave={handleUpdateSplit}
         />
       )}
-
       {showHistory && (
         <HistoryModal
           expenses={historyExpenses}
           onClose={() => setShowHistory(false)}
-          onUndo={handleUndoHistory}
+          onUndo={async (id) => {
+            await supabase.from("trip_expenses").delete().eq("id", id);
+            refreshExpenses();
+          }}
         />
       )}
-
-      {/* 🧠 Footer ด้านล่างสุด */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-center gap-2 bg-gray-900/90 p-3 text-xs text-gray-400 backdrop-blur-sm">
-        <span>v.2.0.0</span>
-      </footer>
     </div>
+  );
+}
+
+function TripHeader({
+  totalExpense,
+  isSyncing,
+  onRefresh,
+  MEMBERS,
+  onOpenMemberModal,
+}) {
+  const [syncStatus, setSyncStatus] = useState("idle");
+  useEffect(() => {
+    if (isSyncing) setSyncStatus("syncing");
+    else if (!isSyncing && syncStatus === "syncing") {
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 1500);
+    }
+  }, [isSyncing, syncStatus]);
+
+  return (
+    <header className="sticky top-0 z-30 bg-gray-900 p-4 text-gray-100 shadow-md">
+      <div className="relative mx-auto max-w-md text-center">
+        <button
+          onClick={onOpenMemberModal}
+          className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"
+        >
+          <Users size={16} className="text-lime-400" />
+          <span className="text-xs font-bold text-gray-300">
+            {MEMBERS.length}
+          </span>
+        </button>
+        <button
+          onClick={onRefresh}
+          disabled={syncStatus === "syncing"}
+          className="absolute right-0 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+        >
+          {syncStatus === "syncing" ? (
+            <RefreshCw size={20} className="animate-spin text-gray-400" />
+          ) : syncStatus === "success" ? (
+            <Check size={20} className="text-lime-400" />
+          ) : (
+            <RefreshCw size={20} className="text-gray-300" />
+          )}
+        </button>
+        <p className="mt-1 text-sm font-light opacity-80">
+          ยอดรวมค่าใช้จ่ายทั้งทริป
+        </p>
+        <h1 className="my-1 text-4xl font-bold">
+          ฿{formatMoney(totalExpense)}
+        </h1>
+      </div>
+    </header>
   );
 }
