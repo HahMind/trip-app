@@ -61,3 +61,30 @@ export const openBankApp = async (textToCopy, scheme, title) => {
     Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
   }
 };
+// ดึงข้อมูลคิวที่ค้างซิงค์ (Get pending sync queue)
+export const getOfflineQueue = () => {
+  try {
+    return JSON.parse(localStorage.getItem("trip_offline_queue") || "[]");
+  } catch {
+    return [];
+  }
+};
+
+// บันทึกคิวลงเครื่อง (Save queue to local storage)
+export const saveOfflineQueue = (queue) => {
+  localStorage.setItem("trip_offline_queue", JSON.stringify(queue));
+};
+
+// ดึงข้อมูลรายจ่ายล่าสุดที่เคยโหลดไว้ (Get cached expenses)
+export const getCachedExpenses = () => {
+  try {
+    return JSON.parse(localStorage.getItem("trip_cached_expenses") || "[]");
+  } catch {
+    return [];
+  }
+};
+
+// บันทึกข้อมูลรายจ่ายลงเครื่องเพื่อแสดงผลทันที (Save expenses to local storage for instant load)
+export const saveCachedExpenses = (expenses) => {
+  localStorage.setItem("trip_cached_expenses", JSON.stringify(expenses));
+};

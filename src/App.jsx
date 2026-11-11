@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
-import { formatForDB, formatMoney, getStoredMemberDetails, getStoredMembers, getTodayISO, parseForUI } from "./utils/trip";
+import { 
+  formatForDB, formatMoney, getStoredMemberDetails, getStoredMembers, getTodayISO, parseForUI,
+  getOfflineQueue, saveOfflineQueue, getCachedExpenses, saveCachedExpenses // นำเข้าฟังก์ชันจัดการออฟไลน์ (Import offline handlers)
+} from "./utils/trip";
 import ExpenseList from "./components/ExpenseList";
 import HistoryModal from "./components/HistoryModal";
 import MemberModal from "./components/MemberModal";
@@ -24,7 +27,10 @@ export default function App() {
     return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0];
   });
 
-  const [expenses, setExpenses] = useState([]);
+  // ใช้ข้อมูลจากแคชเป็นค่าเริ่มต้น (Initialize with cached data)
+  const [expenses, setExpenses] = useState(getCachedExpenses);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine); // สถานะอินเทอร์เน็ต (Network status)
+  
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
@@ -35,8 +41,6 @@ export default function App() {
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
   const [editId, setEditId] = useState(null);
   const [swipedId, setSwipedId] = useState(null);
-  
-  // 🧠 เพิ่ม State สำหรับ Highlight รายการที่เพิ่งแก้ไขเสร็จ
   const [highlightedId, setHighlightedId] = useState(null);
 
   const [date, setDate] = useState(getTodayISO());
@@ -53,19 +57,65 @@ export default function App() {
   const pressTimer = useRef(null);
   const hasScrolled = useRef(false);
 
+  // ฟังก์ชันไล่คิวซิงค์ข้อมูล (Background sync function)
+  const syncOfflineData = useCallback(async () => {
+    if (!navigator.onLine) return;
+    
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+
+    setIsSyncing(true);
+    for (const task of queue) {
+      try {
+        if (task.type === "INSERT") {
+          const { id, ...payloadWithoutTempId } = task.payload; 
+          // ถ้าเป็น ID ชั่วคราวให้ตัดออกก่อนส่ง (Remove temp ID before insert)
+          const payload = String(id).startsWith("temp-") ? payloadWithoutTempId : task.payload;
+          await supabase.from("trip_expenses").insert([payload]);
+        }
+        if (task.type === "UPDATE") {
+          await supabase.from("trip_expenses").update(task.payload).eq("id", task.payload.id);
+        }
+        if (task.type === "DELETE") {
+          await supabase.from("trip_expenses").delete().eq("id", task.payload.id);
+        }
+      } catch (error) {
+        console.error("Sync Error: ", error);
+      }
+    }
+    saveOfflineQueue([]); // ล้างคิว (Clear queue)
+    refreshExpenses(); // ดึงข้อมูลอัปเดตล่าสุด (Fetch fresh data)
+  }, []);
+
   const refreshExpenses = useCallback(async () => {
     setIsSyncing(true);
     const { data, error } = await supabase.from("trip_expenses").select("*").order("created_at", { ascending: false });
-    if (error) Swal.fire({ ...SWAL_THEME, icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
-    else if (data) setExpenses(data);
+    if (error) {
+      if (navigator.onLine) Swal.fire({ ...SWAL_THEME, icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
+    } else if (data) {
+      setExpenses(data);
+      saveCachedExpenses(data); // บันทึกแคชล่าสุด (Save latest cache)
+    }
     setTimeout(() => setIsSyncing(false), 500);
   }, []);
 
   useEffect(() => {
+    const handleOnline = () => { setIsOffline(false); syncOfflineData(); };
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
     refreshExpenses().then(() => setLoading(false));
+    
     const subscription = supabase.channel("trip_expenses_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, refreshExpenses).subscribe();
-    return () => supabase.removeChannel(subscription);
-  }, [refreshExpenses]);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      supabase.removeChannel(subscription);
+    };
+  }, [refreshExpenses, syncOfflineData]);
 
   const handleAppClick = () => { if (swipedId) setSwipedId(null); };
 
@@ -101,6 +151,7 @@ export default function App() {
     Swal.fire({ ...SWAL_THEME, icon: "success", title: `ลบ ${name} แล้ว`, timer: 500, showConfirmButton: false });
   };
 
+  // ปรับการบันทึกรายการแบบ Offline-First (Modify Add/Edit to Offline-First)
   const handleAddExpense = async (event) => {
     event.preventDefault();
     const numericAmount = Number(amount);
@@ -113,33 +164,56 @@ export default function App() {
       odometer_end: category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
 
+    const newExpense = { ...payload, id: editId || `temp-${Date.now()}` };
+
+    // 1. อัปเดต UI ทันที (Update UI immediately)
+    let updatedExpenses;
     if (editId) {
-      const savedEditId = editId; // 🧠 เก็บ ID ไว้ทำ Highlight
-      await supabase.from("trip_expenses").update(payload).eq("id", editId);
+      updatedExpenses = expenses.map(e => e.id === editId ? { ...e, ...payload } : e);
+      const savedEditId = editId;
       setEditId(null);
-      
-      // 🧠 สั่งเปิด Highlight ให้รายการนี้ 1.5 วิ
       setHighlightedId(savedEditId);
       setTimeout(() => setHighlightedId(null), 2500);
     } else {
-      await supabase.from("trip_expenses").insert([payload]);
+      updatedExpenses = [newExpense, ...expenses];
     }
+    setExpenses(updatedExpenses);
+    saveCachedExpenses(updatedExpenses);
+
+    // 2. บันทึกลงคิว (Save to queue)
+    const queue = getOfflineQueue();
+    queue.push({ type: editId ? "UPDATE" : "INSERT", payload: newExpense });
+    saveOfflineQueue(queue);
 
     if (category === "ค่าน้ำมัน") {
       if (odometerEnd) localStorage.setItem("lastOdometerEnd", odometerEnd);
       if (fuelPrice) localStorage.setItem("lastFuelPrice", fuelPrice);
       if (fuelConsumption) localStorage.setItem("lastFuelConsumption", fuelConsumption);
     }
-    await refreshExpenses();
+
     setItem(""); setAmount(""); setCategory(CATEGORIES[0]);
     setOdometerStart(localStorage.getItem("lastOdometerEnd") || ""); setOdometerEnd("");
+    
+    // 3. สั่งซิงค์ข้อมูล (Trigger sync)
+    syncOfflineData();
+    
     Swal.fire({ ...SWAL_THEME, icon: "success", title: editId ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ", timer: 1000, showConfirmButton: false });
   };
 
+  // ปรับการอัปเดตผู้หารแบบ Offline-First (Modify split update to Offline-First)
   const handleUpdateSplit = async (id, newSplit) => {
-    const { error } = await supabase.from("trip_expenses").update({ split_between: newSplit }).eq("id", id);
-    if (error) Swal.fire({ ...SWAL_THEME, icon: "error", title: "อัปเดตผู้หารไม่สำเร็จ", text: error.message });
-    else await refreshExpenses();
+    // 1. อัปเดต UI ทันที
+    const updatedExpenses = expenses.map(e => e.id === id ? { ...e, split_between: newSplit } : e);
+    setExpenses(updatedExpenses);
+    saveCachedExpenses(updatedExpenses);
+
+    // 2. บันทึกลงคิว
+    const queue = getOfflineQueue();
+    queue.push({ type: "UPDATE", payload: { id, split_between: newSplit } });
+    saveOfflineQueue(queue);
+
+    // 3. สั่งซิงค์ข้อมูล
+    syncOfflineData();
   };
 
   const cancelEdit = () => {
@@ -153,11 +227,38 @@ export default function App() {
   };
   const cancelPressTimer = () => { clearTimeout(pressTimer.current); setIsPressing(false); };
 
+  // ปรับการลบประวัติแบบ Offline-First (Modify history undo to Offline-First)
+  const handleUndoHistory = async (id) => {
+    const updatedExpenses = expenses.filter(e => e.id !== id);
+    setExpenses(updatedExpenses);
+    saveCachedExpenses(updatedExpenses);
+
+    const queue = getOfflineQueue();
+    queue.push({ type: "DELETE", payload: { id } });
+    saveOfflineQueue(queue);
+
+    syncOfflineData();
+  };
+
+  // ปรับการเคลียร์เงินแบบ Offline-First (Modify debt settlement to Offline-First)
   const handleSettleDebt = async (from, to, settleAmount) => {
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
-    await supabase.from("trip_expenses").insert([{ expense_date: formattedDate, item_name: `[เคลียร์ยอด] ${from} -> ${to}`, amount: settleAmount, category: HISTORY_CATEGORY, paid_by: from }]);
-    setActivePayment(null); await refreshExpenses();
+    const newHistory = { 
+      id: `temp-${Date.now()}`, expense_date: formattedDate, item_name: `[เคลียร์ยอด] ${from} -> ${to}`, 
+      amount: settleAmount, category: HISTORY_CATEGORY, paid_by: from 
+    };
+
+    const updatedExpenses = [newHistory, ...expenses];
+    setExpenses(updatedExpenses);
+    saveCachedExpenses(updatedExpenses);
+
+    const queue = getOfflineQueue();
+    queue.push({ type: "INSERT", payload: newHistory });
+    saveOfflineQueue(queue);
+
+    setActivePayment(null);
+    syncOfflineData();
   };
 
   const regularExpenses = expenses.filter((e) => e.category !== HISTORY_CATEGORY);
@@ -204,9 +305,10 @@ export default function App() {
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
-      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">v2.0.1</div>
+      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">v2.1.0-offline</div>
 
-      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={refreshExpenses} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} />
+      {/* ส่งสถานะ isOffline ไปยัง TripHeader เพื่อแสดง Badge */}
+      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={refreshExpenses} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} isOffline={isOffline} />
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
         <section className={`rounded-xl border p-5 shadow-sm transition-colors ${editId ? "border-yellow-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`} onClick={(e) => e.stopPropagation()}>
@@ -247,7 +349,6 @@ export default function App() {
               </select>
             </div>
 
-            {/* 🧠 ย้ายปุ่มยกเลิกไปซ้าย และเปลี่ยนปุ่มบันทึกเป็นสีเหลือง */}
             {editId ? (
               <div className="flex gap-2">
                 <button type="button" onClick={cancelEdit} className="flex-1 rounded-lg bg-gray-700 py-3 font-bold text-gray-100 transition hover:bg-gray-600">
@@ -277,11 +378,25 @@ export default function App() {
             onEdit={(exp) => {
               setEditId(exp.id); setDate(parseForUI(exp.expense_date)); setPaidBy(exp.paid_by); setItem(exp.item_name); setAmount(exp.amount); setCategory(exp.category); setOdometerStart(exp.odometer_start || ""); setOdometerEnd(exp.odometer_end || ""); window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            onDelete={async (id) => { const r = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ?", showCancelButton: true, confirmButtonText: "ลบ" }); if (r.isConfirmed) { await supabase.from("trip_expenses").delete().eq("id", id); refreshExpenses(); } }}
+            onDelete={async (id) => { 
+              const r = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ?", showCancelButton: true, confirmButtonText: "ลบ" }); 
+              if (r.isConfirmed) { 
+                // จัดการการลบแบบ Offline-first
+                const updatedExpenses = expenses.filter(e => e.id !== id);
+                setExpenses(updatedExpenses);
+                saveCachedExpenses(updatedExpenses);
+                
+                const queue = getOfflineQueue();
+                queue.push({ type: "DELETE", payload: { id } });
+                saveOfflineQueue(queue);
+                
+                syncOfflineData();
+              } 
+            }}
             onOpenSplitModal={setActiveSplitExpense}
             swipedId={swipedId}
             setSwipedId={setSwipedId}
-            highlightedId={highlightedId} // 🧠 ส่ง highlightedId เข้าไปใน List
+            highlightedId={highlightedId}
           />
         </div>
 
@@ -306,7 +421,7 @@ export default function App() {
       {showMemberModal && <MemberModal members={MEMBERS} balances={settlements.balances} memberDetails={memberDetails} onClose={() => setShowMemberModal(false)} onAdd={handleAddMember} onRemove={handleRemoveMember} onUpdateDetails={handleUpdateMemberDetails} />}
       {activePayment && <PaymentModal from={activePayment.from} to={activePayment.to} amount={activePayment.amount} memberDetails={memberDetails} onClose={() => setActivePayment(null)} onUpdateDetails={handleUpdateMemberDetails} onConfirm={handleSettleDebt} />}
       {activeSplitExpense && <SplitModal expense={activeSplitExpense} members={MEMBERS} onClose={() => setActiveSplitExpense(null)} onSave={handleUpdateSplit} />}
-      {showHistory && <HistoryModal expenses={historyExpenses} onClose={() => setShowHistory(false)} onUndo={async (id) => { await supabase.from("trip_expenses").delete().eq("id", id); refreshExpenses(); }} />}
+      {showHistory && <HistoryModal expenses={historyExpenses} onClose={() => setShowHistory(false)} onUndo={handleUndoHistory} />}
     </div>
   );
 }
