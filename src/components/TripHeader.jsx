@@ -8,7 +8,6 @@ export default function TripHeader({
   onRefresh,
   MEMBERS,
   onOpenMemberModal,
-  isOffline,
 }) {
   const [syncStatus, setSyncStatus] = useState("idle");
   useEffect(() => {
@@ -22,11 +21,6 @@ export default function TripHeader({
   return (
     <header className="sticky top-0 z-30 bg-gray-900 p-4 text-gray-100 shadow-md">
       <div className="relative mx-auto max-w-md text-center">
-        {isOffline && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 rounded-b-md bg-amber-500 px-3 py-1 text-[10px] font-bold text-gray-950">
-            Offline Mode
-          </div>
-        )}
         <button
           onClick={onOpenMemberModal}
           className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"

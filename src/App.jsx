@@ -1,11 +1,10 @@
-import { ArrowRight, CheckCircle, Edit2, History, Receipt, Users } from "lucide-react";
+import { ArrowRight, CheckCircle, Edit2, History, Receipt, Users, WifiOff, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
 import { 
-  formatForDB, formatMoney, getStoredMemberDetails, getStoredMembers, getTodayISO, parseForUI,
-  getOfflineQueue, saveOfflineQueue, getCachedExpenses, saveCachedExpenses 
+  formatForDB, formatMoney, getStoredMemberDetails, getStoredMembers, getTodayISO, parseForUI
 } from "./utils/trip";
 import ExpenseList from "./components/ExpenseList";
 import HistoryModal from "./components/HistoryModal";
@@ -18,7 +17,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.3-Sync";
+const version_number = "2.1.4-removeOfflineFirst";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -29,7 +28,7 @@ export default function App() {
     return saved && MEMBERS.includes(saved) ? saved : (MEMBERS[0] || "");
   });
 
-  const [expenses, setExpenses] = useState(getCachedExpenses);
+  const [expenses, setExpenses] = useState([]); // เริ่มด้วย Array ว่าง รอโหลดจาก DB
   const [isOffline, setIsOffline] = useState(!navigator.onLine); 
   
   const [loading, setLoading] = useState(true);
@@ -56,6 +55,7 @@ export default function App() {
   const pressTimer = useRef(null);
   const hasScrolled = useRef(false);
 
+  // ดึงรายชื่อจาก Database ตรงๆ
   const refreshMembers = useCallback(async () => {
     if (!navigator.onLine) return;
     const { data, error } = await supabase.from("trip_members").select("name").order("created_at", { ascending: true });
@@ -67,55 +67,35 @@ export default function App() {
     }
   }, []);
 
-  const syncOfflineData = useCallback(async () => {
-    if (!navigator.onLine) return;
-    
-    const queue = getOfflineQueue();
-    if (queue.length > 0) {
-      setIsSyncing(true);
-      for (const task of queue) {
-        try {
-          if (task.table === "trip_members") {
-             if (task.type === "INSERT") await supabase.from("trip_members").insert([{ name: task.payload.name }]);
-             if (task.type === "DELETE") await supabase.from("trip_members").delete().eq("name", task.payload.name);
-          } else {
-            if (task.type === "INSERT") {
-              const { id, ...payloadWithoutTempId } = task.payload; 
-              const payload = String(id).startsWith("temp-") ? payloadWithoutTempId : task.payload;
-              await supabase.from("trip_expenses").insert([payload]);
-            }
-            if (task.type === "UPDATE") await supabase.from("trip_expenses").update(task.payload).eq("id", task.payload.id);
-            if (task.type === "DELETE") await supabase.from("trip_expenses").delete().eq("id", task.payload.id);
-          }
-        } catch (error) {
-          console.error("Sync Error: ", error);
-        }
-      }
-      saveOfflineQueue([]); 
-    }
-    
-    await refreshMembers();
-    await refreshExpenses(); 
-  }, [refreshMembers]);
-
+  // ดึงรายจ่ายจาก Database ตรงๆ
   const refreshExpenses = useCallback(async () => {
+    if (!navigator.onLine) return;
     setIsSyncing(true);
     const { data, error } = await supabase.from("trip_expenses").select("*").order("created_at", { ascending: false });
     if (!error && data) {
       setExpenses(data);
-      saveCachedExpenses(data);
     }
     setTimeout(() => setIsSyncing(false), 500);
   }, []);
 
   useEffect(() => {
-    const handleOnline = () => { setIsOffline(false); syncOfflineData(); };
+    const handleOnline = () => {
+      setIsOffline(false);
+      // พอกลับมาออนไลน์ ให้โหลดข้อมูลใหม่ทั้งหมด
+      Promise.all([refreshMembers(), refreshExpenses()]).then(() => setLoading(false));
+    };
     const handleOffline = () => setIsOffline(true);
+    
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    Promise.all([refreshMembers(), refreshExpenses()]).then(() => setLoading(false));
+    if (navigator.onLine) {
+       Promise.all([refreshMembers(), refreshExpenses()]).then(() => setLoading(false));
+    } else {
+       setLoading(false); // ถ้าเปิดมาแล้วออฟไลน์เลย ให้เลิกหมุน จะได้โชว์หน้า Offline
+    }
     
+    // ตั้งค่า Realtime Subscription
     const expenseSub = supabase.channel("trip_expenses_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, refreshExpenses).subscribe();
     const memberSub = supabase.channel("trip_members_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_members" }, refreshMembers).subscribe();
     
@@ -125,20 +105,18 @@ export default function App() {
       supabase.removeChannel(expenseSub);
       supabase.removeChannel(memberSub);
     };
-  }, [refreshExpenses, refreshMembers, syncOfflineData]);
+  }, [refreshExpenses, refreshMembers]);
 
   const handleAppClick = () => { if (swipedId) setSwipedId(null); };
 
+  // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้" });
     if (!MEMBERS.includes(name)) {
-      const newMembers = [...MEMBERS, name];
-      setMembers(newMembers); localStorage.setItem("tripMembers", JSON.stringify(newMembers));
+      const { error } = await supabase.from("trip_members").insert([{ name }]);
+      if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "เพิ่มไม่สำเร็จ", text: error.message });
       
-      const queue = getOfflineQueue();
-      queue.push({ table: "trip_members", type: "INSERT", payload: { name } });
-      saveOfflineQueue(queue);
-      syncOfflineData();
-
+      await refreshMembers(); // โหลดใหม่ทันที
       if (details) handleUpdateMemberDetails(name, details, false);
       Swal.fire({ ...SWAL_THEME, icon: "success", title: `เพิ่ม ${name} สำเร็จ`, timer: 400, showConfirmButton: false });
     }
@@ -151,27 +129,24 @@ export default function App() {
   };
 
   const handleRemoveMember = async (name, hasDebt) => {
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถลบสมาชิกขณะออฟไลน์ได้" });
     if (MEMBERS.length <= 1) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ลบไม่ได้", text: "ต้องมีสมาชิกอย่างน้อย 1 คน" });
     if (hasDebt) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "ลบไม่ได้", text: `${name} มียอดค้างชำระอยู่` });
 
     const result = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ", text: `ลบ ${name} ออกจากทริป?`, showCancelButton: true, confirmButtonText: "ลบ", cancelButtonText: "ยกเลิก" });
     if (!result.isConfirmed) return;
 
-    const newMembers = MEMBERS.filter((m) => m !== name);
-    setMembers(newMembers); localStorage.setItem("tripMembers", JSON.stringify(newMembers));
-    
-    if (paidBy === name) { setPaidBy(newMembers[0]); localStorage.setItem("defaultPaidBy", newMembers[0]); }
-    
-    const queue = getOfflineQueue();
-    queue.push({ table: "trip_members", type: "DELETE", payload: { name } });
-    saveOfflineQueue(queue);
-    syncOfflineData();
+    const { error } = await supabase.from("trip_members").delete().eq("name", name);
+    if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "ลบไม่สำเร็จ", text: error.message });
 
+    await refreshMembers(); // โหลดใหม่ทันที
     Swal.fire({ ...SWAL_THEME, icon: "success", title: `ลบ ${name} แล้ว`, timer: 500, showConfirmButton: false });
   };
 
   const handleAddExpense = async (event) => {
     event.preventDefault();
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถบันทึกรายการขณะออฟไลน์ได้" });
+    
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "กรุณากรอกจำนวนเงิน" });
 
@@ -182,62 +157,63 @@ export default function App() {
       odometer_end: category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
 
-    const newExpense = { ...payload, id: editId || `temp-${Date.now()}` };
-    let updatedExpenses = editId ? expenses.map(e => e.id === editId ? { ...e, ...payload } : e) : [newExpense, ...expenses];
-    
-    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
+    if (editId) {
+      const { error } = await supabase.from("trip_expenses").update(payload).eq("id", editId);
+      if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "แก้ไขไม่สำเร็จ", text: error.message });
+      setEditId(null);
+      setHighlightedId(editId); setTimeout(() => setHighlightedId(null), 2500);
+    } else {
+      const { error } = await supabase.from("trip_expenses").insert([payload]);
+      if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
+    }
 
-    const queue = getOfflineQueue();
-    queue.push({ table: "trip_expenses", type: editId ? "UPDATE" : "INSERT", payload: newExpense });
-    saveOfflineQueue(queue);
-    syncOfflineData();
-
+    await refreshExpenses(); // โหลดใหม่ทันที
     setItem(""); setAmount(""); setCategory(CATEGORIES[0]);
-    if (editId) { setEditId(null); setHighlightedId(editId); setTimeout(() => setHighlightedId(null), 2500); }
     Swal.fire({ ...SWAL_THEME, icon: "success", title: editId ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ", timer: 1000, showConfirmButton: false });
   };
 
   const handleUpdateSplit = async (id, newSplit) => {
-    const updatedExpenses = expenses.map(e => e.id === id ? { ...e, split_between: newSplit } : e);
-    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
-
-    const queue = getOfflineQueue();
-    queue.push({ table: "trip_expenses", type: "UPDATE", payload: { id, split_between: newSplit } });
-    saveOfflineQueue(queue);
-    syncOfflineData();
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถแก้ไขการหารขณะออฟไลน์ได้" });
+    const { error } = await supabase.from("trip_expenses").update({ split_between: newSplit }).eq("id", id);
+    if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "อัปเดตไม่สำเร็จ", text: error.message });
+    await refreshExpenses();
   };
 
   const cancelEdit = () => {
     setEditId(null); setItem(""); setAmount(""); setCategory(CATEGORIES[0]);
   };
 
-  const handleUndoHistory = async (id) => {
-    const updatedExpenses = expenses.filter(e => e.id !== id);
-    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
+  const handleDelete = async (id) => {
+     if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถลบรายการขณะออฟไลน์ได้" });
+     const r = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ?", showCancelButton: true, confirmButtonText: "ลบ" }); 
+     if (r.isConfirmed) {
+         const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+         if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "ลบไม่สำเร็จ", text: error.message });
+         await refreshExpenses();
+     }
+  };
 
-    const queue = getOfflineQueue();
-    queue.push({ table: "trip_expenses", type: "DELETE", payload: { id } });
-    saveOfflineQueue(queue);
-    syncOfflineData();
+  const handleUndoHistory = async (id) => {
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถทำรายการขณะออฟไลน์ได้" });
+    const { error } = await supabase.from("trip_expenses").delete().eq("id", id);
+    if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "กู้คืนไม่สำเร็จ", text: error.message });
+    await refreshExpenses();
   };
 
   const handleSettleDebt = async (from, to, settleAmount) => {
+    if (isOffline) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ออฟไลน์", text: "ไม่สามารถทำรายการขณะออฟไลน์ได้" });
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
     const newHistory = { 
-      id: `temp-${Date.now()}`, expense_date: formattedDate, item_name: `[เคลียร์ยอด] ${from} -> ${to}`, 
+      expense_date: formattedDate, item_name: `[เคลียร์ยอด] ${from} -> ${to}`, 
       amount: settleAmount, category: HISTORY_CATEGORY, paid_by: from 
     };
 
-    const updatedExpenses = [newHistory, ...expenses];
-    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
-
-    const queue = getOfflineQueue();
-    queue.push({ table: "trip_expenses", type: "INSERT", payload: newHistory });
-    saveOfflineQueue(queue);
-
+    const { error } = await supabase.from("trip_expenses").insert([newHistory]);
+    if (error) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "บันทึกไม่สำเร็จ", text: error.message });
+    
     setActivePayment(null);
-    syncOfflineData();
+    await refreshExpenses();
   };
 
   const startPressTimer = () => {
@@ -259,9 +235,7 @@ export default function App() {
       if (payer) payer.balance += Number(expense.amount);
       
       let splitMembers = Array.isArray(expense.split_between) && expense.split_between.length > 0 ? expense.split_between : [expense.paid_by];
-      
       const validSplit = splitMembers.filter((m) => MEMBERS.includes(m));
-      
       const finalSplitters = validSplit.length > 0 ? validSplit : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]);
       
       const costPerPerson = Number(expense.amount) / finalSplitters.length;
@@ -292,6 +266,28 @@ export default function App() {
     return { balances, transfers };
   }, [MEMBERS, regularExpenses, historyExpenses]);
 
+  // หน้าจอตอนออฟไลน์ (บังมิด อ่านได้อย่างเดียวไม่ได้)
+  if (isOffline) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
+        <WifiOff size={48} className="mb-4 text-red-500 opacity-80" />
+        <h1 className="mb-2 text-xl font-bold text-gray-100">ไม่มีสัญญาณอินเทอร์เน็ต</h1>
+        <p className="mb-6 text-sm text-gray-400">กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลการหารเงินของทริปนี้</p>
+        <Loader2 size={24} className="animate-spin text-lime-400" />
+      </div>
+    );
+  }
+
+  // หน้าจอตอนกำลังโหลดข้อมูลตอนเปิดแอปครั้งแรก
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
+        <Loader2 size={48} className="mb-4 animate-spin text-lime-400" />
+        <p className="text-sm font-bold text-gray-400">กำลังเชื่อมต่อฐานข้อมูล...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-black pb-24 font-sans text-gray-100" onClick={handleAppClick}>
       <style>{`
@@ -300,7 +296,7 @@ export default function App() {
       `}</style>
       <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">{version_number}</div>
 
-      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={() => { refreshMembers(); refreshExpenses(); }} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} isOffline={isOffline} />
+      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={() => { refreshMembers(); refreshExpenses(); }} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} />
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
         <section className={`rounded-xl border p-5 shadow-sm transition-colors ${editId ? "border-yellow-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`} onClick={(e) => e.stopPropagation()}>
@@ -370,20 +366,7 @@ export default function App() {
             onEdit={(exp) => {
               setEditId(exp.id); setDate(parseForUI(exp.expense_date)); setPaidBy(exp.paid_by); setItem(exp.item_name); setAmount(exp.amount); setCategory(exp.category); setOdometerStart(exp.odometer_start || ""); setOdometerEnd(exp.odometer_end || ""); window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            onDelete={async (id) => { 
-              const r = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ?", showCancelButton: true, confirmButtonText: "ลบ" }); 
-              if (r.isConfirmed) { 
-                const updatedExpenses = expenses.filter(e => e.id !== id);
-                setExpenses(updatedExpenses);
-                saveCachedExpenses(updatedExpenses);
-                
-                const queue = getOfflineQueue();
-                queue.push({ type: "DELETE", payload: { id } });
-                saveOfflineQueue(queue);
-                
-                syncOfflineData();
-              } 
-            }}
+            onDelete={handleDelete}
             onOpenSplitModal={setActiveSplitExpense}
             swipedId={swipedId}
             setSwipedId={setSwipedId}
