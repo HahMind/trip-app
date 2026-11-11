@@ -204,7 +204,7 @@ export default function App() {
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
-      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">v2.0.0</div>
+      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">v2.0.1</div>
 
       <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={refreshExpenses} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} />
 
