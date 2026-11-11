@@ -5,7 +5,7 @@ import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
 import { 
   formatForDB, formatMoney, getStoredMemberDetails, getStoredMembers, getTodayISO, parseForUI,
-  getOfflineQueue, saveOfflineQueue, getCachedExpenses, saveCachedExpenses // นำเข้าฟังก์ชันจัดการออฟไลน์ (Import offline handlers)
+  getOfflineQueue, saveOfflineQueue, getCachedExpenses, saveCachedExpenses 
 } from "./utils/trip";
 import ExpenseList from "./components/ExpenseList";
 import HistoryModal from "./components/HistoryModal";
@@ -18,18 +18,19 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
+const version_number = "2.1.3-Sync";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
+  
   const [paidBy, setPaidBy] = useState(() => {
     const saved = localStorage.getItem("defaultPaidBy");
-    return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0];
+    return saved && MEMBERS.includes(saved) ? saved : (MEMBERS[0] || "");
   });
 
-  // ใช้ข้อมูลจากแคชเป็นค่าเริ่มต้น (Initialize with cached data)
   const [expenses, setExpenses] = useState(getCachedExpenses);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine); // สถานะอินเทอร์เน็ต (Network status)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine); 
   
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -47,54 +48,62 @@ export default function App() {
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
-
+  
   const [odometerStart, setOdometerStart] = useState(() => localStorage.getItem("lastOdometerEnd") || "");
   const [odometerEnd, setOdometerEnd] = useState("");
-  const [fuelPrice, setFuelPrice] = useState(() => localStorage.getItem("lastFuelPrice") || "");
-  const [fuelConsumption, setFuelConsumption] = useState(() => localStorage.getItem("lastFuelConsumption") || "");
 
   const [isPressing, setIsPressing] = useState(false);
   const pressTimer = useRef(null);
   const hasScrolled = useRef(false);
 
-  // ฟังก์ชันไล่คิวซิงค์ข้อมูล (Background sync function)
+  const refreshMembers = useCallback(async () => {
+    if (!navigator.onLine) return;
+    const { data, error } = await supabase.from("trip_members").select("name").order("created_at", { ascending: true });
+    if (data && data.length > 0) {
+      const fetchedMembers = data.map(d => d.name);
+      setMembers(fetchedMembers);
+      localStorage.setItem("tripMembers", JSON.stringify(fetchedMembers));
+      setPaidBy(prev => fetchedMembers.includes(prev) ? prev : fetchedMembers[0]);
+    }
+  }, []);
+
   const syncOfflineData = useCallback(async () => {
     if (!navigator.onLine) return;
     
     const queue = getOfflineQueue();
-    if (queue.length === 0) return;
-
-    setIsSyncing(true);
-    for (const task of queue) {
-      try {
-        if (task.type === "INSERT") {
-          const { id, ...payloadWithoutTempId } = task.payload; 
-          // ถ้าเป็น ID ชั่วคราวให้ตัดออกก่อนส่ง (Remove temp ID before insert)
-          const payload = String(id).startsWith("temp-") ? payloadWithoutTempId : task.payload;
-          await supabase.from("trip_expenses").insert([payload]);
+    if (queue.length > 0) {
+      setIsSyncing(true);
+      for (const task of queue) {
+        try {
+          if (task.table === "trip_members") {
+             if (task.type === "INSERT") await supabase.from("trip_members").insert([{ name: task.payload.name }]);
+             if (task.type === "DELETE") await supabase.from("trip_members").delete().eq("name", task.payload.name);
+          } else {
+            if (task.type === "INSERT") {
+              const { id, ...payloadWithoutTempId } = task.payload; 
+              const payload = String(id).startsWith("temp-") ? payloadWithoutTempId : task.payload;
+              await supabase.from("trip_expenses").insert([payload]);
+            }
+            if (task.type === "UPDATE") await supabase.from("trip_expenses").update(task.payload).eq("id", task.payload.id);
+            if (task.type === "DELETE") await supabase.from("trip_expenses").delete().eq("id", task.payload.id);
+          }
+        } catch (error) {
+          console.error("Sync Error: ", error);
         }
-        if (task.type === "UPDATE") {
-          await supabase.from("trip_expenses").update(task.payload).eq("id", task.payload.id);
-        }
-        if (task.type === "DELETE") {
-          await supabase.from("trip_expenses").delete().eq("id", task.payload.id);
-        }
-      } catch (error) {
-        console.error("Sync Error: ", error);
       }
+      saveOfflineQueue([]); 
     }
-    saveOfflineQueue([]); // ล้างคิว (Clear queue)
-    refreshExpenses(); // ดึงข้อมูลอัปเดตล่าสุด (Fetch fresh data)
-  }, []);
+    
+    await refreshMembers();
+    await refreshExpenses(); 
+  }, [refreshMembers]);
 
   const refreshExpenses = useCallback(async () => {
     setIsSyncing(true);
     const { data, error } = await supabase.from("trip_expenses").select("*").order("created_at", { ascending: false });
-    if (error) {
-      if (navigator.onLine) Swal.fire({ ...SWAL_THEME, icon: "error", title: "โหลดข้อมูลไม่สำเร็จ", text: error.message });
-    } else if (data) {
+    if (!error && data) {
       setExpenses(data);
-      saveCachedExpenses(data); // บันทึกแคชล่าสุด (Save latest cache)
+      saveCachedExpenses(data);
     }
     setTimeout(() => setIsSyncing(false), 500);
   }, []);
@@ -102,28 +111,34 @@ export default function App() {
   useEffect(() => {
     const handleOnline = () => { setIsOffline(false); syncOfflineData(); };
     const handleOffline = () => setIsOffline(true);
-
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    refreshExpenses().then(() => setLoading(false));
+    Promise.all([refreshMembers(), refreshExpenses()]).then(() => setLoading(false));
     
-    const subscription = supabase.channel("trip_expenses_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, refreshExpenses).subscribe();
+    const expenseSub = supabase.channel("trip_expenses_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_expenses" }, refreshExpenses).subscribe();
+    const memberSub = supabase.channel("trip_members_changes").on("postgres_changes", { event: "*", schema: "public", table: "trip_members" }, refreshMembers).subscribe();
     
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(expenseSub);
+      supabase.removeChannel(memberSub);
     };
-  }, [refreshExpenses, syncOfflineData]);
+  }, [refreshExpenses, refreshMembers, syncOfflineData]);
 
   const handleAppClick = () => { if (swipedId) setSwipedId(null); };
 
-  const handleAddMember = (name, details) => {
+  const handleAddMember = async (name, details) => {
     if (!MEMBERS.includes(name)) {
       const newMembers = [...MEMBERS, name];
       setMembers(newMembers); localStorage.setItem("tripMembers", JSON.stringify(newMembers));
-      setPaidBy(name); localStorage.setItem("defaultPaidBy", name);
+      
+      const queue = getOfflineQueue();
+      queue.push({ table: "trip_members", type: "INSERT", payload: { name } });
+      saveOfflineQueue(queue);
+      syncOfflineData();
+
       if (details) handleUpdateMemberDetails(name, details, false);
       Swal.fire({ ...SWAL_THEME, icon: "success", title: `เพิ่ม ${name} สำเร็จ`, timer: 400, showConfirmButton: false });
     }
@@ -139,19 +154,22 @@ export default function App() {
     if (MEMBERS.length <= 1) return Swal.fire({ ...SWAL_THEME, icon: "warning", title: "ลบไม่ได้", text: "ต้องมีสมาชิกอย่างน้อย 1 คน" });
     if (hasDebt) return Swal.fire({ ...SWAL_THEME, icon: "error", title: "ลบไม่ได้", text: `${name} มียอดค้างชำระอยู่` });
 
-    const result = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ", text: `ลบ ${name} ออกจากทริป?`, showCancelButton: true, confirmButtonText: "ลบ", cancelButtonText: "ยกเลิก", customClass: { ...SWAL_THEME.customClass, confirmButton: "bg-red-500 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-600 transition text-sm cursor-pointer" } });
+    const result = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ", text: `ลบ ${name} ออกจากทริป?`, showCancelButton: true, confirmButtonText: "ลบ", cancelButtonText: "ยกเลิก" });
     if (!result.isConfirmed) return;
 
     const newMembers = MEMBERS.filter((m) => m !== name);
     setMembers(newMembers); localStorage.setItem("tripMembers", JSON.stringify(newMembers));
-    const newDetails = { ...memberDetails }; delete newDetails[name];
-    setMemberDetails(newDetails); localStorage.setItem("memberDetails", JSON.stringify(newDetails));
-
+    
     if (paidBy === name) { setPaidBy(newMembers[0]); localStorage.setItem("defaultPaidBy", newMembers[0]); }
+    
+    const queue = getOfflineQueue();
+    queue.push({ table: "trip_members", type: "DELETE", payload: { name } });
+    saveOfflineQueue(queue);
+    syncOfflineData();
+
     Swal.fire({ ...SWAL_THEME, icon: "success", title: `ลบ ${name} แล้ว`, timer: 500, showConfirmButton: false });
   };
 
-  // ปรับการบันทึกรายการแบบ Offline-First (Modify Add/Edit to Offline-First)
   const handleAddExpense = async (event) => {
     event.preventDefault();
     const numericAmount = Number(amount);
@@ -165,82 +183,44 @@ export default function App() {
     };
 
     const newExpense = { ...payload, id: editId || `temp-${Date.now()}` };
+    let updatedExpenses = editId ? expenses.map(e => e.id === editId ? { ...e, ...payload } : e) : [newExpense, ...expenses];
+    
+    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
 
-    // 1. อัปเดต UI ทันที (Update UI immediately)
-    let updatedExpenses;
-    if (editId) {
-      updatedExpenses = expenses.map(e => e.id === editId ? { ...e, ...payload } : e);
-      const savedEditId = editId;
-      setEditId(null);
-      setHighlightedId(savedEditId);
-      setTimeout(() => setHighlightedId(null), 2500);
-    } else {
-      updatedExpenses = [newExpense, ...expenses];
-    }
-    setExpenses(updatedExpenses);
-    saveCachedExpenses(updatedExpenses);
-
-    // 2. บันทึกลงคิว (Save to queue)
     const queue = getOfflineQueue();
-    queue.push({ type: editId ? "UPDATE" : "INSERT", payload: newExpense });
+    queue.push({ table: "trip_expenses", type: editId ? "UPDATE" : "INSERT", payload: newExpense });
     saveOfflineQueue(queue);
-
-    if (category === "ค่าน้ำมัน") {
-      if (odometerEnd) localStorage.setItem("lastOdometerEnd", odometerEnd);
-      if (fuelPrice) localStorage.setItem("lastFuelPrice", fuelPrice);
-      if (fuelConsumption) localStorage.setItem("lastFuelConsumption", fuelConsumption);
-    }
+    syncOfflineData();
 
     setItem(""); setAmount(""); setCategory(CATEGORIES[0]);
-    setOdometerStart(localStorage.getItem("lastOdometerEnd") || ""); setOdometerEnd("");
-    
-    // 3. สั่งซิงค์ข้อมูล (Trigger sync)
-    syncOfflineData();
-    
+    if (editId) { setEditId(null); setHighlightedId(editId); setTimeout(() => setHighlightedId(null), 2500); }
     Swal.fire({ ...SWAL_THEME, icon: "success", title: editId ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ", timer: 1000, showConfirmButton: false });
   };
 
-  // ปรับการอัปเดตผู้หารแบบ Offline-First (Modify split update to Offline-First)
   const handleUpdateSplit = async (id, newSplit) => {
-    // 1. อัปเดต UI ทันที
     const updatedExpenses = expenses.map(e => e.id === id ? { ...e, split_between: newSplit } : e);
-    setExpenses(updatedExpenses);
-    saveCachedExpenses(updatedExpenses);
+    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
 
-    // 2. บันทึกลงคิว
     const queue = getOfflineQueue();
-    queue.push({ type: "UPDATE", payload: { id, split_between: newSplit } });
+    queue.push({ table: "trip_expenses", type: "UPDATE", payload: { id, split_between: newSplit } });
     saveOfflineQueue(queue);
-
-    // 3. สั่งซิงค์ข้อมูล
     syncOfflineData();
   };
 
   const cancelEdit = () => {
     setEditId(null); setItem(""); setAmount(""); setCategory(CATEGORIES[0]);
-    setOdometerStart(localStorage.getItem("lastOdometerEnd") || ""); setOdometerEnd("");
   };
 
-  const startPressTimer = () => {
-    hasScrolled.current = false; setIsPressing(true);
-    pressTimer.current = setTimeout(() => { window.scrollTo({ top: 0, behavior: "smooth" }); hasScrolled.current = true; setIsPressing(false); }, 400);
-  };
-  const cancelPressTimer = () => { clearTimeout(pressTimer.current); setIsPressing(false); };
-
-  // ปรับการลบประวัติแบบ Offline-First (Modify history undo to Offline-First)
   const handleUndoHistory = async (id) => {
     const updatedExpenses = expenses.filter(e => e.id !== id);
-    setExpenses(updatedExpenses);
-    saveCachedExpenses(updatedExpenses);
+    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
 
     const queue = getOfflineQueue();
-    queue.push({ type: "DELETE", payload: { id } });
+    queue.push({ table: "trip_expenses", type: "DELETE", payload: { id } });
     saveOfflineQueue(queue);
-
     syncOfflineData();
   };
 
-  // ปรับการเคลียร์เงินแบบ Offline-First (Modify debt settlement to Offline-First)
   const handleSettleDebt = async (from, to, settleAmount) => {
     const today = new Date();
     const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
@@ -250,16 +230,21 @@ export default function App() {
     };
 
     const updatedExpenses = [newHistory, ...expenses];
-    setExpenses(updatedExpenses);
-    saveCachedExpenses(updatedExpenses);
+    setExpenses(updatedExpenses); saveCachedExpenses(updatedExpenses);
 
     const queue = getOfflineQueue();
-    queue.push({ type: "INSERT", payload: newHistory });
+    queue.push({ table: "trip_expenses", type: "INSERT", payload: newHistory });
     saveOfflineQueue(queue);
 
     setActivePayment(null);
     syncOfflineData();
   };
+
+  const startPressTimer = () => {
+    hasScrolled.current = false; setIsPressing(true);
+    pressTimer.current = setTimeout(() => { window.scrollTo({ top: 0, behavior: "smooth" }); hasScrolled.current = true; setIsPressing(false); }, 400);
+  };
+  const cancelPressTimer = () => { clearTimeout(pressTimer.current); setIsPressing(false); };
 
   const regularExpenses = expenses.filter((e) => e.category !== HISTORY_CATEGORY);
   const historyExpenses = expenses.filter((e) => e.category === HISTORY_CATEGORY);
@@ -268,16 +253,24 @@ export default function App() {
 
   const settlements = useMemo(() => {
     const balances = MEMBERS.map((member) => ({ member, balance: 0 }));
+    
     regularExpenses.forEach((expense) => {
       const payer = balances.find((b) => b.member === expense.paid_by);
       if (payer) payer.balance += Number(expense.amount);
-      const splitMembers = Array.isArray(expense.split_between) && expense.split_between.length > 0 ? expense.split_between : [expense.paid_by];
+      
+      let splitMembers = Array.isArray(expense.split_between) && expense.split_between.length > 0 ? expense.split_between : [expense.paid_by];
+      
       const validSplit = splitMembers.filter((m) => MEMBERS.includes(m));
-      if (validSplit.length > 0) {
-        const costPerPerson = Number(expense.amount) / validSplit.length;
-        validSplit.forEach((m) => { const debtor = balances.find((b) => b.member === m); if (debtor) debtor.balance -= costPerPerson; });
-      }
+      
+      const finalSplitters = validSplit.length > 0 ? validSplit : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]);
+      
+      const costPerPerson = Number(expense.amount) / finalSplitters.length;
+      finalSplitters.forEach((m) => { 
+        const debtor = balances.find((b) => b.member === m); 
+        if (debtor) debtor.balance -= costPerPerson; 
+      });
     });
+
     historyExpenses.forEach((expense) => {
       const payer = balances.find((b) => b.member === expense.paid_by);
       if (payer) payer.balance += Number(expense.amount);
@@ -305,10 +298,9 @@ export default function App() {
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
-      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">v2.1.1-offline</div>
+      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">{version_number}</div>
 
-      {/* ส่งสถานะ isOffline ไปยัง TripHeader เพื่อแสดง Badge */}
-      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={refreshExpenses} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} isOffline={isOffline} />
+      <TripHeader totalExpense={totalExpense} isSyncing={isSyncing} onRefresh={() => { refreshMembers(); refreshExpenses(); }} MEMBERS={MEMBERS} onOpenMemberModal={() => setShowMemberModal(true)} isOffline={isOffline} />
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
         <section className={`rounded-xl border p-5 shadow-sm transition-colors ${editId ? "border-yellow-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`} onClick={(e) => e.stopPropagation()}>
@@ -381,7 +373,6 @@ export default function App() {
             onDelete={async (id) => { 
               const r = await Swal.fire({ ...SWAL_THEME, title: "ยืนยันการลบ?", showCancelButton: true, confirmButtonText: "ลบ" }); 
               if (r.isConfirmed) { 
-                // จัดการการลบแบบ Offline-first
                 const updatedExpenses = expenses.filter(e => e.id !== id);
                 setExpenses(updatedExpenses);
                 saveCachedExpenses(updatedExpenses);
@@ -397,6 +388,7 @@ export default function App() {
             swipedId={swipedId}
             setSwipedId={setSwipedId}
             highlightedId={highlightedId}
+            MEMBERS={MEMBERS}
           />
         </div>
 

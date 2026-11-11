@@ -3,11 +3,13 @@ import { useEffect, useState } from "react";
 import { formatMoney } from "../utils/trip";
 
 export default function SplitModal({ expense, members, onClose, onSave }) {
-  const [selectedSplit, setSelectedSplit] = useState(() =>
-    expense?.split_between?.length > 0
-      ? expense.split_between
-      : [expense?.paid_by],
-  );
+  const [selectedSplit, setSelectedSplit] = useState(() => {
+    const rawSplit =
+      expense?.split_between?.length > 0
+        ? expense.split_between
+        : [expense.paid_by];
+    return rawSplit.filter((m) => members.includes(m));
+  });
 
   useEffect(() => {
     const handleEsc = (e) => {
@@ -109,4 +111,3 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
     </div>
   );
 }
-

@@ -15,7 +15,8 @@ export default function ExpenseList({
   onOpenSplitModal,
   swipedId,
   setSwipedId,
-  highlightedId, // รับ Props เข้ามา
+  highlightedId, 
+  MEMBERS,
 }) {
   useEffect(() => {
     const handleScroll = () => {
@@ -89,6 +90,7 @@ export default function ExpenseList({
                       onOpenSplitModal={onOpenSplitModal}
                       isLast={index === groupedExpenses[date].length - 1}
                       isHighlighted={highlightedId === expense.id} // 🧠 ส่ง isHighlighted เข้าไป
+                      MEMBERS={MEMBERS}
                     />
                   ))}
                 </div>

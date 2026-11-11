@@ -4,6 +4,7 @@ import { formatMoney } from "../utils/trip";
 
 export default function ExpenseItem({
   expense,
+  MEMBERS,
   swipedId,
   setSwipedId,
   onEdit,
@@ -19,6 +20,8 @@ export default function ExpenseItem({
     offset: 0,
     scrolling: false,
   });
+  const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
+
   const isMouse = useRef(false);
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
 
@@ -32,10 +35,9 @@ export default function ExpenseItem({
     }
   }, [isHighlighted]);
 
-  const splitList =
-    expense.split_between?.length > 0
-      ? expense.split_between
-      : [expense.paid_by];
+  const splitList = validSplit.length > 0 
+  ? validSplit
+  : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]); // ถ้าไม่มีใครอยู่ใน split_between ให้ใช้ paid_by หรือสมาชิกคนแรกแทน
   const isGas = expense.category === "ค่าน้ำมัน";
   const distance =
     isGas && expense.odometer_start && expense.odometer_end
