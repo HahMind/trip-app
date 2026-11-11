@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.5-edit-detail-memberlist";
+const version_number = "2.1.6-Overscroll-Bounce";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -806,7 +806,7 @@ export default function App() {
         </section>
       </main>
 
-      <div className="fixed bottom-10 right-6 z-40 flex items-center justify-center">
+      <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-6 z-40 flex items-center justify-center">
         {isPressing && (
           <svg
             className="absolute inset-0 h-[68px] w-[68px] -translate-x-[2px] -translate-y-[2px] -rotate-90 pointer-events-none"

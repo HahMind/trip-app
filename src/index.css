@@ -1,5 +1,14 @@
 @import "tailwindcss";
+
 /* ล็อกการถ่างนิ้วซูมด้วยมือ (Pinch-to-zoom) บน iOS Safari */
 html, body, #root {
   touch-action: pan-x pan-y;
+}
+
+/* ล็อคสีพื้นหลังหลักเป็นสีดำ และปิดอาการ Overscroll Bounce (ยืดจอเห็นแถบขาว) */
+html, body {
+  background-color: #000000 !important;
+  color: #f3f4f6;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
 }
