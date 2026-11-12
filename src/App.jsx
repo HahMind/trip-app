@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.8-full-screen";
+const version_number = "2.1.9-full-screen,bg-gray-950";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
