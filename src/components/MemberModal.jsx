@@ -97,7 +97,16 @@ export default function MemberModal({
                 {newName || "เพื่อนใหม่"} (ตั้งค่าภายหลังได้)
               </button>
             ) : (
-              <div className="mt-3 space-y-2 border-t border-gray-700 pt-3">
+              <div className="mt-3 space-y-2 border-t border-gray-700 pt-3 relative">
+                <div className="flex justify-end pr-2 ">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPayForm(false)}
+                    className="mt-2 flex items-center gap-1 text-[11px] bg-red-700 p-1.5 rounded font-medium text-gray-200 transition hover:text-red-500"
+                  >
+                    <X size={12} /> ยกเลิก
+                  </button>
+                </div>
                 <input
                   type="text"
                   placeholder="เบอร์พร้อมเพย์..."
@@ -107,6 +116,7 @@ export default function MemberModal({
                   }
                   className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
                 />
+                <p className="font-medium text-xs text-sky-400 ">หรือ</p>
                 <div className="flex gap-2">
                   <select
                     value={newPayForm.bankId}
@@ -165,4 +175,3 @@ export default function MemberModal({
     </div>
   );
 }
-

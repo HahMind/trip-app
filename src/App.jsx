@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.7-no-HoldToTop";
+const version_number = "2.1.8-full-screen";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -631,7 +631,7 @@ export default function App() {
 
   return (
     <div
-      className="relative min-h-screen bg-black pb-24 font-sans text-gray-100"
+      className="relative min-h-dvh bg-black pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
       <style>{`

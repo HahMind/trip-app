@@ -1,0 +1,1221 @@
+Trip App components source bundle
+Generated from src/components/*.jsx and .env
+
+================================================================================
+FILE: src/components/ExpenseItem.jsx
+================================================================================
+import { Edit2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { formatMoney } from "../utils/trip";
+
+export default function ExpenseItem({
+  expense,
+  MEMBERS,
+  swipedId,
+  setSwipedId,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  isLast,
+  isHighlighted, //  รับ State การ Highlight
+}) {
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
+  const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
+
+  const isMouse = useRef(false);
+  const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
+
+  //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
+  useEffect(() => {
+    if (isHighlighted && itemRef.current) {
+      itemRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center", // ให้กล่องรายการอยู่ตรงกลางจอพอดี
+      });
+    }
+  }, [isHighlighted]);
+
+  const splitList = validSplit.length > 0 
+  ? validSplit
+  : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]); // ถ้าไม่มีใครอยู่ใน split_between ให้ใช้ paid_by หรือสมาชิกคนแรกแทน
+  const isGas = expense.category === "ค่าน้ำมัน";
+  const distance =
+    isGas && expense.odometer_start && expense.odometer_end
+      ? Number(expense.odometer_end) - Number(expense.odometer_start)
+      : 0;
+
+  const isOpen = swipedId === expense.id;
+  let currentOffset = isOpen ? -70 : 0;
+  if (drag.active) {
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
+    if (currentOffset > 0) currentOffset = 0;
+    if (currentOffset < -90) currentOffset = -90;
+  }
+  const isSwiped = currentOffset < -5;
+
+  const startDrag = (clientX, clientY) => {
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
+    if (swipedId !== expense.id) setSwipedId(null);
+  };
+  const moveDrag = (clientX, clientY) => {
+    if (!drag.active) return;
+    const diffX = clientX - drag.startX,
+      diffY = Math.abs(clientY - drag.startY);
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15)
+      setDrag((prev) => ({ ...prev, scrolling: true }));
+    if (drag.scrolling) return;
+    setDrag((prev) => ({ ...prev, offset: diffX }));
+  };
+  const endDrag = () => {
+    if (!drag.active) return;
+    if (!drag.scrolling) {
+      if (currentOffset < -35) setSwipedId(expense.id);
+      else setSwipedId(null);
+    }
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
+  };
+
+  return (
+    <div
+      ref={itemRef} //  ผูก Ref เพื่อดึงหน้าจอ
+      className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
+    >
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center">
+        <button
+          onClick={() => {
+            onDelete(expense.id);
+            setSwipedId(null);
+          }}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+          style={{
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active
+              ? "none"
+              : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div
+        //  สลับ Class การสว่าง (Highlight สีเหลือง) หาก isHighlighted เป็น true
+        className={`relative z-10 flex cursor-grab touch-pan-y items-center justify-between p-3 pl-8 active:cursor-grabbing transition-colors duration-700 ${
+          isHighlighted ? "bg-yellow-200/30 shadow-[inset_4px_0_0_#c9c9af]" : "bg-gray-800"
+        }`}
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active
+            ? "none"
+            : "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease-out, box-shadow 0.5s ease-out",
+          borderTopRightRadius: isSwiped ? "24px" : "0px",
+          borderBottomRightRadius: isSwiped ? "24px" : "0px",
+        }}
+        onTouchStart={(e) =>
+          startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchMove={(e) =>
+          moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
+        }
+        onTouchEnd={endDrag}
+        onMouseDown={(e) => {
+          isMouse.current = true;
+          startDrag(e.clientX, e.clientY);
+        }}
+        onMouseMove={(e) => {
+          if (isMouse.current) moveDrag(e.clientX, e.clientY);
+        }}
+        onMouseUp={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+        onMouseLeave={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+      >
+        <div className="pointer-events-none flex-1">
+          <p className="mb-0.5 text-xs text-gray-400">
+            จ่ายโดย:{" "}
+            <span className="font-bold text-lime-400">{expense.paid_by}</span>
+          </p>
+          <p className="font-medium text-gray-100">{expense.item_name}</p>
+          <p className="text-xs text-gray-400">
+            {expense.category}{" "}
+            {splitList.length > 0 && (
+              <span className="text-[10px] text-sky-400">
+                {" "}
+                (หาร {splitList.length} คน)
+              </span>
+            )}
+          </p>
+          {distance > 0 && (
+            <p className="mt-0.5 text-[11px] font-medium text-amber-400">
+              ไมล์ {expense.odometer_start} - {expense.odometer_end} ({distance}{" "}
+              กม.)
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="pointer-events-none font-bold text-gray-100">
+            ฿{formatMoney(expense.amount)}
+          </p>
+          <div className="relative z-20 flex gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSplitModal(expense);
+              }}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:text-sky-400"
+            >
+              <Plus size={14} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(expense);
+                setSwipedId(null);
+              }}
+              className="text-gray-400 transition hover:text-lime-400"
+            >
+              <Edit2 size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+FILE: src/components/ExpenseList.jsx
+================================================================================
+import { ChevronDown, ChevronRight, FolderClosed, FolderOpen, Maximize2, Minimize2, Receipt } from "lucide-react";
+import { useEffect } from "react";
+import ExpenseItem from "./ExpenseItem";
+
+export default function ExpenseList({
+  expenses,
+  groupedExpenses,
+  loading,
+  isExpanded,
+  collapsedDates,
+  onToggleExpanded,
+  onToggleDate,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  swipedId,
+  setSwipedId,
+  highlightedId, 
+  MEMBERS,
+}) {
+  useEffect(() => {
+    const handleScroll = () => {
+      if (swipedId) setSwipedId(null);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [swipedId, setSwipedId]);
+
+  return (
+    <section className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-bold text-gray-100">
+          <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>
+        </div>
+        <button
+          onClick={onToggleExpanded}
+          className="flex items-center gap-1 rounded-full bg-gray-800 px-3 py-1.5 text-xs text-gray-300 shadow-sm"
+        >
+          {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{" "}
+          {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
+      ) : expenses.length === 0 ? (
+        <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
+      ) : (
+        <div
+          className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}
+        >
+          {Object.keys(groupedExpenses).map((date) => (
+            <div
+              key={date}
+              className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-sm"
+            >
+              <button
+                onClick={() => onToggleDate(date)}
+                className="relative z-20 flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600"
+              >
+                <div className="flex items-center gap-2 font-bold text-gray-100">
+                  {collapsedDates[date] ? (
+                    <FolderClosed size={16} className="text-lime-400" />
+                  ) : (
+                    <FolderOpen size={16} className="text-lime-400" />
+                  )}
+                  <span>{date}</span>
+                  <span className="rounded-full bg-gray-600 px-2 py-0.5 text-xs font-normal text-gray-300">
+                    {groupedExpenses[date].length} รายการ
+                  </span>
+                </div>
+                {collapsedDates[date] ? (
+                  <ChevronRight size={18} className="text-lime-400" />
+                ) : (
+                  <ChevronDown size={18} className="text-lime-400" />
+                )}
+              </button>
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
+              >
+                <div className="overflow-hidden bg-gray-900">
+                  {groupedExpenses[date].map((expense, index) => (
+                    <ExpenseItem
+                      key={expense.id}
+                      expense={expense}
+                      swipedId={swipedId}
+                      setSwipedId={setSwipedId}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onOpenSplitModal={onOpenSplitModal}
+                      isLast={index === groupedExpenses[date].length - 1}
+                      isHighlighted={highlightedId === expense.id} 
+                      MEMBERS={MEMBERS}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+================================================================================
+FILE: src/components/HistoryModal.jsx
+================================================================================
+import { History, RotateCcw, X } from "lucide-react";
+import { useEffect } from "react";
+import { formatMoney } from "../utils/trip";
+
+export default function HistoryModal({ expenses, onClose, onUndo }) {
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm transition-all"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
+          <h2 className="flex items-center gap-2 font-bold">
+            <History size={20} /> ประวัติการเคลียร์ยอด
+          </h2>
+          <button onClick={onClose} className="hover:text-lime-300">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {expenses.length === 0 ? (
+            <p className="py-10 text-center text-gray-400">
+              ยังไม่มีประวัติการโอนเงิน
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {expenses.map((expense) => (
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3"
+                >
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      {expense.expense_date}
+                    </p>
+                    <p className="font-medium text-gray-100">
+                      {expense.item_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right">
+                    <p className="font-bold text-lime-400">
+                      ฿{formatMoney(expense.amount)}
+                    </p>
+                    <button
+                      onClick={() => onUndo(expense.id)}
+                      className="ml-2 flex items-center gap-1 rounded-3xl border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs text-sky-400 transition hover:bg-sky-500 hover:text-gray-950"
+                    >
+                      <RotateCcw size={14} /> กู้คืน
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+================================================================================
+FILE: src/components/MemberItem.jsx
+================================================================================
+import { Edit2, Save, Trash2 } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { BANKS } from "../data/constants";
+
+export default function MemberItem({
+  member,
+  hasDebt,
+  details,
+  onRemove,
+  onUpdateDetails,
+  swipedMember,
+  setSwipedMember,
+  isEditing,
+  onEdit,
+}) {
+  const [form, setForm] = useState({
+    promptpay: details?.promptpay || "",
+    bankId: details?.bankId || "kbank",
+    bankAcc: details?.bankAcc || "",
+  });
+
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
+  
+  const isMouse = useRef(false);
+
+  const isOpen = swipedMember === member;
+  let currentOffset = isOpen ? -70 : 0;
+  if (drag.active) {
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
+    if (currentOffset > 0) currentOffset = 0;
+    if (currentOffset < -90) currentOffset = -90;
+  }
+  const isSwiped = currentOffset < -5;
+
+  const startDrag = (clientX, clientY) => {
+    if (isEditing) return;
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
+    if (swipedMember !== member) setSwipedMember(null);
+  };
+
+  const moveDrag = (clientX, clientY) => {
+    if (!drag.active) return;
+    const diffX = clientX - drag.startX;
+    const diffY = Math.abs(clientY - drag.startY);
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
+      setDrag((prev) => ({ ...prev, scrolling: true }));
+    }
+    if (drag.scrolling) return;
+    setDrag((prev) => ({ ...prev, offset: diffX }));
+  };
+
+  const endDrag = () => {
+    if (!drag.active) return;
+    isMouse.current = false;
+    if (!drag.scrolling) {
+      const baseOffset = isOpen ? -70 : 0;
+      const finalOffset = baseOffset + drag.offset;
+      if (finalOffset < -35) {
+        setSwipedMember(member);
+      } else {
+        setSwipedMember(null);
+      }
+    }
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => {
+      if (isMouse.current) moveDrag(e.clientX, e.clientY);
+    };
+    const handleGlobalMouseUp = () => {
+      if (isMouse.current) {
+        isMouse.current = false;
+        endDrag();
+      }
+    };
+
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, [drag.active, drag.startX, drag.startY, isOpen, member]);
+
+  return (
+    <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
+      
+      {/* 💻 [Desktop View] ปุ่มลบโชว์ไว้ตลอดทางด้านขวา ไม่ต้องปัด */}
+      <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
+        <button
+          onClick={() => onRemove(member, hasDebt)}
+          className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+            hasDebt
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-red-500 text-white hover:bg-red-600"
+          }`}
+          title={hasDebt ? "มียอดค้างชำระ ลบไม่ได้" : "ลบสมาชิก"}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      {/* 📱 [Mobile View] ปุ่มลบสำหรับระบบ Swipe */}
+      <div className="absolute inset-y-0 right-3 flex md:hidden items-center justify-center">
+        <button
+          onClick={() => {
+            onRemove(member, hasDebt);
+            setSwipedMember(null);
+          }}
+          className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${
+            hasDebt
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-red-500 text-white hover:bg-red-600"
+          }`}
+          style={{
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div
+        className="relative z-10 flex items-center justify-between bg-gray-800 p-3 md:pr-14"
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          borderTopRightRadius: isSwiped ? "24px" : "0px",
+          borderBottomRightRadius: isSwiped ? "24px" : "0px",
+        }}
+        onTouchStart={(e) => startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
+        onTouchMove={(e) => moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
+        onTouchEnd={endDrag}
+        onMouseDown={(e) => {
+          isMouse.current = true;
+          startDrag(e.clientX, e.clientY);
+        }}
+      >
+        <span className="font-medium text-gray-100">{member}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onEdit}
+            className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
+          >
+            <Edit2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      {isEditing && (
+        <div className="border-t border-gray-700 bg-gray-900/80 p-3 space-y-3">
+          <div>
+            <label className="mb-1 block text-[10px] text-gray-400">
+              เบอร์พร้อมเพย์ (เว้นว่างได้)
+            </label>
+            <input
+              type="text"
+              value={form.promptpay}
+              onChange={(e) => setForm({ ...form, promptpay: e.target.value })}
+              className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+              placeholder="เช่น 0812345678"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                ธนาคาร (หลัก)
+              </label>
+              <select
+                value={form.bankId}
+                onChange={(e) => setForm({ ...form, bankId: e.target.value })}
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+              >
+                {BANKS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                เลขบัญชี
+              </label>
+              <input
+                type="text"
+                value={form.bankAcc}
+                onChange={(e) => setForm({ ...form, bankAcc: e.target.value })}
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                placeholder="เลขบัญชี..."
+              />
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              onUpdateDetails(member, form);
+              onEdit(); // ปิดฟอร์มแก้ไขหลังจากกดบันทึก
+            }}
+            className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+          >
+            <Save size={16} /> บันทึกข้อมูล
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+================================================================================
+FILE: src/components/MemberModal.jsx
+================================================================================
+import { Plus, UserPlus, Users, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BANKS } from "../data/constants";
+import MemberItem from "./MemberItem";
+
+export default function MemberModal({
+  members,
+  balances,
+  memberDetails,
+  onClose,
+  onAdd,
+  onRemove,
+  onUpdateDetails,
+}) {
+  const [newName, setNewName] = useState("");
+  const [showNewPayForm, setShowNewPayForm] = useState(false);
+  const [newPayForm, setNewPayForm] = useState({
+    promptpay: "",
+    bankId: "kbank",
+    bankAcc: "",
+  });
+  const [swipedMember, setSwipedMember] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    const trimmed = newName.trim();
+    if (trimmed) {
+      onAdd(trimmed, showNewPayForm ? newPayForm : null);
+      setNewName("");
+      setShowNewPayForm(false);
+      setNewPayForm({ promptpay: "", bankId: "kbank", bankAcc: "" });
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => {
+          e.stopPropagation();
+          setSwipedMember(null);
+        }}
+      >
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
+          <h2 className="flex items-center gap-2 font-bold">
+            <Users size={20} /> จัดการสมาชิกทริป
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-lime-300"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <div
+          className="flex-1 overflow-y-auto p-4"
+          onScroll={() => setSwipedMember(null)}
+        >
+          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+            <form onSubmit={handleAdd} className="flex gap-2">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="พิมพ์ชื่อเพื่อน..."
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!newName.trim()}
+                className="flex items-center gap-1 rounded-lg bg-lime-400 px-4 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 disabled:opacity-50"
+              >
+                <UserPlus size={16} /> เพิ่ม
+              </button>
+            </form>
+
+            {!showNewPayForm ? (
+              <button
+                type="button"
+                onClick={() => setShowNewPayForm(true)}
+                className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-400 hover:text-sky-300 transition"
+              >
+                <Plus size={12} /> เพิ่มวิธีการชำระเงินให้{" "}
+                {newName || "เพื่อนใหม่"} (ตั้งค่าภายหลังได้)
+              </button>
+            ) : (
+              <div className="mt-3 space-y-2 border-t border-gray-700 pt-3 relative">
+                <div className="flex justify-end pr-2 ">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPayForm(false)}
+                    className="mt-2 flex items-center gap-1 text-[11px] bg-red-700 p-1.5 rounded font-medium text-gray-200 transition hover:text-red-500"
+                  >
+                    <X size={12} /> ยกเลิก
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="เบอร์พร้อมเพย์..."
+                  value={newPayForm.promptpay}
+                  onChange={(e) =>
+                    setNewPayForm({ ...newPayForm, promptpay: e.target.value })
+                  }
+                  className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                />
+                <p className="font-medium text-xs text-sky-400 ">หรือ</p>
+                <div className="flex gap-2">
+                  <select
+                    value={newPayForm.bankId}
+                    onChange={(e) =>
+                      setNewPayForm({ ...newPayForm, bankId: e.target.value })
+                    }
+                    className="rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                  >
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="เลขบัญชี..."
+                    value={newPayForm.bankAcc}
+                    onChange={(e) =>
+                      setNewPayForm({ ...newPayForm, bankAcc: e.target.value })
+                    }
+                    className="flex-1 rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="mb-2 text-xs font-bold text-gray-400">
+              ปัดซ้ายเพื่อลบสมาชิก ({members.length})
+            </p>
+            {members.map((member) => {
+              const balance =
+                balances.find((b) => b.member === member)?.balance || 0;
+              const hasDebt = Math.abs(balance) > 0.01;
+              const details = memberDetails[member] || {};
+              return (
+                <MemberItem
+                  key={member}
+                  member={member}
+                  hasDebt={hasDebt}
+                  details={details}
+                  onRemove={onRemove}
+                  onUpdateDetails={onUpdateDetails}
+                  swipedMember={swipedMember}
+                  setSwipedMember={setSwipedMember}
+                  isEditing={editingMember === member}
+                  onEdit={() => setEditingMember(editingMember === member ? null : member)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+================================================================================
+FILE: src/components/PaymentModal.jsx
+================================================================================
+import { CheckCircle, Copy, Wallet } from "lucide-react";
+import { useState } from "react";
+import { BANKS, SWAL_THEME } from "../data/constants";
+import { formatMoney, openBankApp } from "../utils/trip";
+import Swal from "sweetalert2";
+
+export default function PaymentModal({
+  from,
+  to,
+  amount,
+  memberDetails,
+  onUpdateDetails,
+  onClose,
+  onConfirm,
+}) {
+  const details = memberDetails[to] || {};
+  const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
+  const [form, setForm] = useState({
+    promptpay: details.promptpay || "",
+    bankId: details.bankId || "kbank",
+    bankAcc: details.bankAcc || "",
+  });
+
+  const selectedBank = BANKS.find(
+    (b) => b.id === (details.bankId || form.bankId),
+  );
+
+  const handleSaveDetails = () => {
+    onUpdateDetails(to, form);
+  };
+
+  const handleConfirmPay = async () => {
+    const result = await Swal.fire({
+      ...SWAL_THEME,
+      title: `ยืนยันการโอนเงิน`,
+      text: `คุณโอนเงิน ฿${formatMoney(amount)} ให้ ${to} เรียบร้อยแล้วใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: "โอนเรียบร้อย",
+      cancelButtonText: "ยกเลิก",
+    });
+    if (result.isConfirmed) {
+      onConfirm(from, to, amount);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-gray-800 p-4 text-center">
+          <p className="text-sm text-gray-400">ชำระเงินให้</p>
+          <h2 className="text-xl font-bold text-lime-400">{to}</h2>
+          <p className="mt-1 text-3xl font-bold text-white">
+            ฿{formatMoney(amount)}
+          </p>
+        </div>
+
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setTab("qr")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "qr" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            สแกนคิวอาร์
+          </button>
+          <button
+            onClick={() => setTab("bank")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "bank" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            คัดลอกบัญชี
+          </button>
+        </div>
+
+        <div className="p-5">
+          {tab === "qr" && (
+            <div className="flex flex-col items-center">
+              {details.promptpay ? (
+                <>
+                  <div className="mb-4 overflow-hidden rounded-lg bg-white p-2">
+                    <img
+                      src={`https://promptpay.io/${details.promptpay}/${amount}.png`}
+                      alt="PromptPay QR"
+                      className="h-48 w-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    พร้อมเพย์:{" "}
+                    <span className="font-mono text-gray-200">
+                      {details.promptpay}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลพร้อมเพย์ของ {to}
+                  </p>
+                  <input
+                    type="text"
+                    value={form.promptpay}
+                    onChange={(e) =>
+                      setForm({ ...form, promptpay: e.target.value })
+                    }
+                    placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกและสร้าง QR
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "bank" && (
+            <div className="flex flex-col">
+              {details.bankAcc ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
+                    <p className="text-xs text-gray-400">
+                      {selectedBank?.name}
+                    </p>
+                    <p className="font-mono text-lg tracking-wider text-gray-100">
+                      {details.bankAcc}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() =>
+                        openBankApp(
+                          details.bankAcc,
+                          selectedBank?.scheme,
+                          "คัดลอกเลขบัญชีแล้ว",
+                        )
+                      }
+                      className="flex flex-col items-center gap-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-xs text-gray-300 transition hover:bg-gray-700"
+                    >
+                      <Copy size={16} /> 1. ก๊อปเลขบัญชี
+                    </button>
+                    <button
+                      onClick={() =>
+                        openBankApp(
+                          amount.toString(),
+                          selectedBank?.scheme,
+                          "คัดลอกยอดเงินแล้ว",
+                        )
+                      }
+                      className="flex flex-col items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 py-3 text-xs text-sky-400 transition hover:bg-sky-500/20"
+                    >
+                      <Wallet size={16} /> 2. ก๊อปยอดเงิน
+                    </button>
+                  </div>
+                  <p className="text-center text-[10px] text-gray-500">
+                    *เมื่อกดปุ่ม ระบบจะพยายามเปิดแอปธนาคารให้อัตโนมัติ
+                  </p>
+                </div>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลบัญชีของ {to}
+                  </p>
+                  <select
+                    value={form.bankId}
+                    onChange={(e) =>
+                      setForm({ ...form, bankId: e.target.value })
+                    }
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  >
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={form.bankAcc}
+                    onChange={(e) =>
+                      setForm({ ...form, bankAcc: e.target.value })
+                    }
+                    placeholder="เลขบัญชี..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกข้อมูลบัญชี
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm font-bold text-gray-300 hover:bg-gray-700 transition"
+            >
+              ปิดหน้าต่าง
+            </button>
+            <button
+              onClick={handleConfirmPay}
+              className="flex-[2] flex items-center justify-center gap-1 rounded-lg bg-lime-400 py-3 text-sm font-bold text-gray-950 hover:bg-lime-300 transition"
+            >
+              <CheckCircle size={16} /> ยืนยันโอนสำเร็จ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+================================================================================
+FILE: src/components/SplitModal.jsx
+================================================================================
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatMoney } from "../utils/trip";
+
+export default function SplitModal({ expense, members, onClose, onSave }) {
+  const [selectedSplit, setSelectedSplit] = useState(() => {
+    const rawSplit =
+      expense?.split_between?.length > 0
+        ? expense.split_between
+        : [expense.paid_by];
+    return rawSplit.filter((m) => members.includes(m));
+  });
+
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleToggle = (member) =>
+    setSelectedSplit((prev) =>
+      prev.includes(member)
+        ? prev.filter((m) => m !== member)
+        : [...prev, member],
+    );
+  const isAllSelected =
+    selectedSplit.length === members.length && members.length > 0;
+  const handleToggleAll = () =>
+    isAllSelected ? setSelectedSplit([]) : setSelectedSplit([...members]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
+          <div>
+            <h3 className="font-bold text-base text-gray-100">
+              ระบุผู้หารรายการ
+            </h3>
+            <p className="text-xs text-lime-400 font-medium">
+              {expense.item_name} (฿{formatMoney(expense.amount)})
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-200"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหาร</p>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={handleToggleAll}
+                className="h-3.5 w-3.5 rounded accent-lime-400 cursor-pointer"
+              />
+              <span>เลือกทุกคน</span>
+            </label>
+          </div>
+          <div className="mb-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+            {members.map((member) => (
+              <label
+                key={member}
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 p-3 transition hover:bg-gray-750"
+              >
+                <span className="font-medium text-gray-100 text-sm">
+                  {member}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={selectedSplit.includes(member)}
+                  onChange={() => handleToggle(member)}
+                  className="h-4 w-4 rounded accent-lime-400 cursor-pointer"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-2.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-700"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSave(expense.id, selectedSplit);
+                onClose();
+              }}
+              className="flex-1 rounded-lg bg-lime-400 py-2.5 text-xs font-bold text-gray-950 transition hover:bg-lime-300"
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+================================================================================
+FILE: src/components/TripHeader.jsx
+================================================================================
+import { Check, RefreshCw, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatMoney } from "../utils/trip";
+
+export default function TripHeader({
+  totalExpense,
+  isSyncing,
+  onRefresh,
+  MEMBERS,
+  onOpenMemberModal,
+}) {
+  const [syncStatus, setSyncStatus] = useState("idle");
+  useEffect(() => {
+    if (isSyncing) setSyncStatus("syncing");
+    else if (!isSyncing && syncStatus === "syncing") {
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 1500);
+    }
+  }, [isSyncing, syncStatus]);
+
+  return (
+    <header className="sticky top-0 z-30 bg-gray-900 p-4 text-gray-100 shadow-md">
+      <div className="relative mx-auto max-w-md text-center">
+        <button
+          onClick={onOpenMemberModal}
+          className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"
+        >
+          <Users size={16} className="text-lime-400" />
+          <span className="text-xs font-bold text-gray-300">
+            {MEMBERS.length}
+          </span>
+        </button>
+        <button
+          onClick={onRefresh}
+          disabled={syncStatus === "syncing"}
+          className="absolute right-0 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+        >
+          {syncStatus === "syncing" ? (
+            <RefreshCw size={20} className="animate-spin text-gray-400" />
+          ) : syncStatus === "success" ? (
+            <Check size={20} className="text-lime-400" />
+          ) : (
+            <RefreshCw size={20} className="text-gray-300" />
+          )}
+        </button>
+        <p className="mt-1 text-sm font-light opacity-80">
+          ยอดรวมค่าใช้จ่ายทั้งทริป
+        </p>
+        <h1 className="my-1 text-4xl font-bold">
+          ฿{formatMoney(totalExpense)}
+        </h1>
+      </div>
+    </header>
+  );
+}
+
+
+================================================================================
+FILE: .env
+================================================================================
+VITE_SUPABASE_URL=https://ovphjcceaxajshgzyvaz.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_2akfx9awEyywfq5Q0ZpLWA_iQGY9gzD
+
+
