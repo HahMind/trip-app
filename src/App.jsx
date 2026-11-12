@@ -347,7 +347,7 @@ export default function App() {
         });
       setEditId(null);
       setHighlightedId(editId);
-      setTimeout(() => setHighlightedId(null), 2500);
+      setTimeout(() => setHighlightedId(null), 2000);
     } else {
       const { error } = await supabase.from("trip_expenses").insert([payload]);
       if (error)
@@ -631,7 +631,7 @@ export default function App() {
 
   return (
     <div
-      className="relative min-h-dvh bg-black pb-24 font-sans text-gray-100"
+      className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
       <style>{`
