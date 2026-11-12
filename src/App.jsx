@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.7-no-HoldToTop"; 
+const version_number = "2.1.7-no-HoldToTop";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -270,6 +270,11 @@ export default function App() {
       showCancelButton: true,
       confirmButtonText: "ลบ",
       cancelButtonText: "ยกเลิก",
+      customClass: {
+        ...SWAL_THEME.customClass,
+        confirmButton:
+          "bg-red-600 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-500 transition text-sm cursor-pointer",
+      },
     });
     if (!result.isConfirmed) return;
 
@@ -409,6 +414,11 @@ export default function App() {
       title: "ยืนยันการลบ?",
       showCancelButton: true,
       confirmButtonText: "ลบ",
+      customClass: {
+        ...SWAL_THEME.customClass,
+        confirmButton:
+          "bg-red-600 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-500 transition text-sm cursor-pointer",
+      },
     });
     if (r.isConfirmed) {
       const { error } = await supabase
@@ -764,7 +774,7 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-[2] rounded-lg bg-yellow-400 py-3 font-bold text-gray-950 transition hover:bg-yellow-300"
+                  className="flex-2 rounded-lg bg-yellow-400 py-3 font-bold text-gray-950 transition hover:bg-yellow-300"
                 >
                   บันทึกแก้ไข
                 </button>
