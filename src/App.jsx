@@ -8,7 +8,7 @@ import {
   WifiOff,
   Loader2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.6-Overscroll-Bounce";
+const version_number = "2.1.7-no-HoldToTop"; 
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -67,9 +67,10 @@ export default function App() {
   );
   const [odometerEnd, setOdometerEnd] = useState("");
 
-  const [isPressing, setIsPressing] = useState(false);
-  const pressTimer = useRef(null);
-  const hasScrolled = useRef(false);
+  // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
+  // const [isPressing, setIsPressing] = useState(false);
+  // const pressTimer = useRef(null);
+  // const hasScrolled = useRef(false);
 
   // ดึงรายชื่อจาก Database ตรงๆ
   const refreshMembers = useCallback(async () => {
@@ -90,40 +91,67 @@ export default function App() {
 
   // ดึงรายจ่ายจาก Database ตรงๆ
   const refreshExpenses = useCallback(async () => {
-    if (!navigator.onLine) return;
-    setIsSyncing(true);
-    const { data, error } = await supabase
-      .from("trip_expenses")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) {
-      setExpenses(data);
+    // 1. ตรวจสอบหากไม่มีอินเทอร์เน็ต ให้ดึงข้อมูลที่เคยแคชไว้ใน localStorage มาแสดงผลทันที
+    if (!navigator.onLine) {
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      if (cachedData) {
+        setExpenses(JSON.parse(cachedData));
+      }
+      return;
     }
-    setTimeout(() => setIsSyncing(false), 500);
+
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase
+        .from("trip_expenses")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // 2. หากดึงข้อมูลสำเร็จ ให้อัปเดต State และบันทึกสำรองลง localStorage
+        setExpenses(data);
+        localStorage.setItem("tripExpensesCache", JSON.stringify(data));
+      }
+    } catch (error) {
+      // 3. หากเกิด Error ระหว่างดึงข้อมูล ให้ดึงข้อมูลจากแคชมาแสดงผลสำรอง
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      if (cachedData) {
+        setExpenses(JSON.parse(cachedData));
+      }
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
   }, []);
 
   useEffect(() => {
+    // 1. เช็กสถานะอินเทอร์เน็ตตั้งต้นของเครื่องทันทีที่เปิดแอป
+    setIsOffline(!navigator.onLine);
+
+    // 2. ฟังก์ชันจัดการเมื่อเน็ตกลับมาเชื่อมต่อ
     const handleOnline = () => {
       setIsOffline(false);
-      // พอกลับมาออนไลน์ ให้โหลดข้อมูลใหม่ทั้งหมด
       Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
         setLoading(false),
       );
     };
-    const handleOffline = () => setIsOffline(true);
 
+    // 3. ฟังก์ชันจัดการเมื่อเน็ตหลุด
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    // 4. ผูก Event Listener ดักฟังสถานะเครือข่าย
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    if (navigator.onLine) {
-      Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
-        setLoading(false),
-      );
-    } else {
-      setLoading(false); // ถ้าเปิดมาแล้วออฟไลน์เลย ให้เลิกหมุน จะได้โชว์หน้า Offline
-    }
+    // 5. สั่งดึงข้อมูลทันที (ถ้ามีเน็ตจะดึงจาก Supabase / ถ้าออฟไลน์จะดึงจาก localStorage ในเครื่อง)
+    Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
+      setLoading(false),
+    );
 
-    // ตั้งค่า Realtime Subscription
+    // 6. ตั้งค่า Realtime Subscription สำหรับ Supabase
     const expenseSub = supabase
       .channel("trip_expenses_changes")
       .on(
@@ -132,6 +160,7 @@ export default function App() {
         refreshExpenses,
       )
       .subscribe();
+
     const memberSub = supabase
       .channel("trip_members_changes")
       .on(
@@ -141,6 +170,7 @@ export default function App() {
       )
       .subscribe();
 
+    // 7. คืนค่าฟังก์ชัน Cleanup เพื่อลบ Listener และ Subscription ออกเมื่อเลิกใช้งาน
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
@@ -155,6 +185,7 @@ export default function App() {
 
   // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
+    // 1. ตรวจสอบสถานะการเชื่อมต่ออินเทอร์เน็ต
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -162,7 +193,9 @@ export default function App() {
         title: "ออฟไลน์",
         text: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
       });
+
     if (!MEMBERS.includes(name)) {
+      // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
       const { error } = await supabase.from("trip_members").insert([{ name }]);
       if (error)
         return Swal.fire({
@@ -172,12 +205,21 @@ export default function App() {
           text: error.message,
         });
 
-      await refreshMembers(); // โหลดใหม่ทันที
+      // 3. ตั้งค่าให้สมาชิกใหม่เป็นผู้จ่ายเงินสำรองทันที ทั้งใน State และ localStorage
+      setPaidBy(name);
+      localStorage.setItem("defaultPaidBy", name);
+
+      // 4. ดึงข้อมูลสมาชิกอัปเดตล่าสุดจากเซิร์ฟเวอร์
+      await refreshMembers();
+
+      // 5. หากมีการกรอกข้อมูลการชำระเงินเพิ่มเติม ให้ทำการบันทึกข้อมูลต่อทันที
       if (details) handleUpdateMemberDetails(name, details, false);
+
+      // 6. แสดงการแจ้งเตือนบันทึกสำเร็จ
       Swal.fire({
         ...SWAL_THEME,
         icon: "success",
-        title: `เพิ่ม ${name} สำเร็จ`,
+        title: "เพิ่ม " + name + " สำเร็จ",
         timer: 400,
         showConfirmButton: false,
       });
@@ -455,19 +497,20 @@ export default function App() {
     });
   };
 
-  const startPressTimer = () => {
-    hasScrolled.current = false;
-    setIsPressing(true);
-    pressTimer.current = setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      hasScrolled.current = true;
-      setIsPressing(false);
-    }, 400);
-  };
-  const cancelPressTimer = () => {
-    clearTimeout(pressTimer.current);
-    setIsPressing(false);
-  };
+  // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
+  // const startPressTimer = () => {
+  //   hasScrolled.current = false;
+  //   setIsPressing(true);
+  //   pressTimer.current = setTimeout(() => {
+  //     window.scrollTo({ top: 0, behavior: "smooth" });
+  //     hasScrolled.current = true;
+  //     setIsPressing(false);
+  //   }, 400);
+  // };
+  // const cancelPressTimer = () => {
+  //   clearTimeout(pressTimer.current);
+  //   setIsPressing(false);
+  // };
 
   const regularExpenses = expenses.filter(
     (e) => e.category !== HISTORY_CATEGORY,
@@ -807,6 +850,7 @@ export default function App() {
       </main>
 
       <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-6 z-40 flex items-center justify-center">
+        {/* ปิดแอนิเมชันและการทำงานกดค้างเพื่อเลื่อนไปด้านบน
         {isPressing && (
           <svg
             className="absolute inset-0 h-[68px] w-[68px] -translate-x-[2px] -translate-y-[2px] -rotate-90 pointer-events-none"
@@ -825,15 +869,10 @@ export default function App() {
             />
           </svg>
         )}
+        */}
         <button
-          onClick={() => {
-            if (!hasScrolled.current) setShowHistory(true);
-          }}
-          onMouseEnter={startPressTimer}
-          onMouseLeave={cancelPressTimer}
-          onTouchStart={startPressTimer}
-          onTouchEnd={cancelPressTimer}
-          className={`flex h-16 w-16 items-center justify-center rounded-full text-gray-950 shadow-xl transition-all duration-200 ${isPressing ? "scale-110 bg-amber-700" : "bg-amber-500 hover:bg-amber-600"}`}
+          onClick={() => setShowHistory(true)}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500 text-gray-950 shadow-xl transition-all duration-200 hover:bg-amber-600"
         >
           <History size={28} />
         </button>

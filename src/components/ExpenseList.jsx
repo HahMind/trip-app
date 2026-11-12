@@ -66,7 +66,7 @@ export default function ExpenseList({
                   )}
                   <span>{date}</span>
                   <span className="rounded-full bg-gray-600 px-2 py-0.5 text-xs font-normal text-gray-300">
-                    {groupedExpenses[date].length}
+                    {groupedExpenses[date].length} รายการ
                   </span>
                 </div>
                 {collapsedDates[date] ? (
@@ -89,7 +89,7 @@ export default function ExpenseList({
                       onDelete={onDelete}
                       onOpenSplitModal={onOpenSplitModal}
                       isLast={index === groupedExpenses[date].length - 1}
-                      isHighlighted={highlightedId === expense.id} //  ส่ง isHighlighted เข้าไป
+                      isHighlighted={highlightedId === expense.id} 
                       MEMBERS={MEMBERS}
                     />
                   ))}
