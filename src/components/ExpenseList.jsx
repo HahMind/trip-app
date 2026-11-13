@@ -27,7 +27,10 @@ export default function ExpenseList({
   }, [swipedId, setSwipedId]);
 
   return (
-    <section className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+    <section
+      className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm"
+      onClick={() => setSwipedId(null)}
+    >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-gray-100">
           <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>

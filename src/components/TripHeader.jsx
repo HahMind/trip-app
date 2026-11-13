@@ -25,22 +25,22 @@ export default function TripHeader({
           onClick={onOpenMemberModal}
           className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"
         >
-          <Users size={16} className="text-lime-400" />
-          <span className="text-xs font-bold text-gray-300">
+          <Users size={20} className="text-lime-400" />
+          <span className="text-base font-bold text-gray-300">
             {MEMBERS.length}
           </span>
         </button>
         <button
           onClick={onRefresh}
           disabled={syncStatus === "syncing"}
-          className="absolute right-0 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+          className="absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
         >
           {syncStatus === "syncing" ? (
-            <RefreshCw size={20} className="animate-spin text-gray-400" />
+            <RefreshCw size={26} className="animate-spin text-gray-400" />
           ) : syncStatus === "success" ? (
-            <Check size={20} className="text-lime-400" />
+            <Check size={26} className="text-lime-400" />
           ) : (
-            <RefreshCw size={20} className="text-gray-300" />
+            <RefreshCw size={26} className="text-gray-300" />
           )}
         </button>
         <p className="mt-1 text-sm font-light opacity-80">

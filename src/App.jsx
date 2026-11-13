@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.1.9-full-screen,bg-gray-950";
+const version_number = "2.2.0-swipe";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -618,16 +618,16 @@ export default function App() {
   }
 
   // หน้าจอตอนกำลังโหลดข้อมูลตอนเปิดแอปครั้งแรก
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
-        <Loader2 size={48} className="mb-4 animate-spin text-lime-400" />
-        <p className="text-sm font-bold text-gray-400">
-          กำลังเชื่อมต่อฐานข้อมูล...
-        </p>
-      </div>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
+  //       <Loader2 size={48} className="mb-4 animate-spin text-lime-400" />
+  //       <p className="text-sm font-bold text-gray-400">
+  //         กำลังเชื่อมต่อฐานข้อมูล...
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div
@@ -644,7 +644,7 @@ export default function App() {
 
       <TripHeader
         totalExpense={totalExpense}
-        isSyncing={isSyncing}
+        isSyncing={loading || isSyncing}
         onRefresh={() => {
           refreshMembers();
           refreshExpenses();
@@ -794,7 +794,7 @@ export default function App() {
           <ExpenseList
             expenses={regularExpenses}
             groupedExpenses={groupedExpenses}
-            loading={loading}
+            loading={false}
             isExpanded={isListExpanded}
             collapsedDates={collapsedDates}
             onToggleExpanded={() => setIsListExpanded(!isListExpanded)}

@@ -23,6 +23,7 @@ export default function ExpenseItem({
   const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
 
   const isMouse = useRef(false);
+  const suppressClick = useRef(false);
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
 
   //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
@@ -74,6 +75,7 @@ export default function ExpenseItem({
   };
   const endDrag = () => {
     if (!drag.active) return;
+    suppressClick.current = Math.abs(drag.offset) > 5;
     if (!drag.scrolling) {
       if (currentOffset < -35) setSwipedId(expense.id);
       else setSwipedId(null);
@@ -150,6 +152,14 @@ export default function ExpenseItem({
             endDrag();
           }
         }}
+        onClick={(e) => {
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            e.stopPropagation();
+            return;
+          }
+          setSwipedId(null);
+        }}
       >
         <div className="pointer-events-none flex-1">
           <p className="mb-0.5 text-xs text-gray-400">
@@ -173,19 +183,19 @@ export default function ExpenseItem({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <p className="pointer-events-none font-bold text-gray-100">
             ฿{formatMoney(expense.amount)}
           </p>
-          <div className="relative z-20 flex gap-2">
+          <div className="relative z-20 flex gap-4">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenSplitModal(expense);
               }}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:text-sky-400"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:text-sky-400"
             >
-              <Plus size={14} />
+              <Plus size={20} />
             </button>
             <button
               onClick={(e) => {
@@ -195,7 +205,7 @@ export default function ExpenseItem({
               }}
               className="text-gray-400 transition hover:text-lime-400"
             >
-              <Edit2 size={16} />
+              <Edit2 size={20} />
             </button>
           </div>
         </div>

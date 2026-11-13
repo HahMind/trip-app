@@ -28,6 +28,7 @@ export default function MemberItem({
   });
   
   const isMouse = useRef(false);
+  const suppressClick = useRef(false);
 
   const isOpen = swipedMember === member;
   let currentOffset = isOpen ? -70 : 0;
@@ -64,6 +65,7 @@ export default function MemberItem({
   const endDrag = () => {
     if (!drag.active) return;
     isMouse.current = false;
+    suppressClick.current = Math.abs(drag.offset) > 5;
     if (!drag.scrolling) {
       const baseOffset = isOpen ? -70 : 0;
       const finalOffset = baseOffset + drag.offset;
@@ -126,14 +128,14 @@ export default function MemberItem({
             onRemove(member, hasDebt);
             setSwipedMember(null);
           }}
-          className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${
+          className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
             hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
               : "bg-red-500 text-white hover:bg-red-600"
           }`}
           style={{
             opacity: Math.min(1, -currentOffset / 40),
-            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transform: `scale(${Math.min(1.08, 0.2 + (-currentOffset / 70) * 0.8)})`,
             transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
@@ -155,6 +157,29 @@ export default function MemberItem({
         onMouseDown={(e) => {
           isMouse.current = true;
           startDrag(e.clientX, e.clientY);
+        }}
+        onMouseMove={(e) => {
+          if (isMouse.current) moveDrag(e.clientX, e.clientY);
+        }}
+        onMouseUp={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+        onMouseLeave={() => {
+          if (isMouse.current) {
+            isMouse.current = false;
+            endDrag();
+          }
+        }}
+        onClick={(e) => {
+          if (suppressClick.current) {
+            suppressClick.current = false;
+            e.stopPropagation();
+            return;
+          }
+          setSwipedMember(null);
         }}
       >
         <span className="font-medium text-gray-100">{member}</span>

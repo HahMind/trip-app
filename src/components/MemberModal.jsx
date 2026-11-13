@@ -67,7 +67,6 @@ export default function MemberModal({
 
         <div
           className="flex-1 overflow-y-auto p-4"
-          onScroll={() => setSwipedMember(null)}
         >
           <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/30 p-3">
             <form onSubmit={handleAdd} className="flex gap-2">
