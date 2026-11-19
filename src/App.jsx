@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.2.0-swipe";
+const version_number = "2.2.1-pinchCancel";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -295,7 +295,7 @@ export default function App() {
       ...SWAL_THEME,
       icon: "success",
       title: `ลบ ${name} แล้ว`,
-      timer: 500,
+      timer: 800,
       showConfirmButton: false,
     });
   };

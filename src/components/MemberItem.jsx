@@ -12,6 +12,7 @@ export default function MemberItem({
   setSwipedMember,
   isEditing,
   onEdit,
+  setShowNewPayForm,
 }) {
   const [form, setForm] = useState({
     promptpay: details?.promptpay || "",
@@ -147,7 +148,9 @@ export default function MemberItem({
         className="relative z-10 flex items-center justify-between bg-gray-800 p-3 md:pr-14"
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,
-          transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          transition: drag.active
+            ? "none"
+            : "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.1s",
           borderTopRightRadius: isSwiped ? "24px" : "0px",
           borderBottomRightRadius: isSwiped ? "24px" : "0px",
         }}
@@ -185,7 +188,10 @@ export default function MemberItem({
         <span className="font-medium text-gray-100">{member}</span>
         <div className="flex items-center gap-2">
           <button
-            onClick={onEdit}
+            onClick={() => {
+              onEdit();
+              setShowNewPayForm(false); 
+            }}
             className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
           >
             <Edit2 size={16} />

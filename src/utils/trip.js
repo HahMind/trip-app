@@ -42,24 +42,40 @@ export const formatMoney = (value) =>
   });
 
 export const openBankApp = async (textToCopy, scheme, title) => {
-  try {
-    await navigator.clipboard.writeText(textToCopy);
-    Swal.fire({
-      ...SWAL_THEME,
-      icon: "success",
-      title,
-      text: scheme ? "คัดลอกแล้ว กำลังเปิดแอปธนาคาร..." : "คัดลอกเรียบร้อยแล้ว",
-      timer: 1500,
-      showConfirmButton: false,
-    });
-    if (scheme) {
-      setTimeout(() => {
-        window.location.href = scheme;
-      }, 500);
-    }
-  } catch {
-    Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
+  let copyPromise;
+  if (navigator.clipboard?.writeText) {
+    copyPromise = navigator.clipboard
+      .writeText(textToCopy)
+      .then(() => true)
+      .catch(() => false);
+  } else {
+    const textarea = document.createElement("textarea");
+    textarea.value = textToCopy;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    copyPromise = Promise.resolve(document.execCommand("copy"));
+    textarea.remove();
   }
+
+  if (scheme) window.location.href = scheme;
+
+  const copied = await copyPromise;
+
+  if (!copied) {
+    Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
+    return;
+  }
+
+  Swal.fire({
+    ...SWAL_THEME,
+    icon: "success",
+    title,
+    text: scheme ? "คัดลอกแล้ว กำลังเปิดแอปธนาคาร..." : "คัดลอกเรียบร้อยแล้ว",
+    timer: 1500,
+    showConfirmButton: false,
+  });
 };
 // ดึงข้อมูลคิวที่ค้างซิงค์ (Get pending sync queue)
 export const getOfflineQueue = () => {

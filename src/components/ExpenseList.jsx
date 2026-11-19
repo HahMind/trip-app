@@ -81,7 +81,7 @@ export default function ExpenseList({
               <div
                 className={`grid transition-all duration-300 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
               >
-                <div className="overflow-hidden bg-gray-900">
+                <div className="overflow-hidden bg-gray-900 ">
                   {groupedExpenses[date].map((expense, index) => (
                     <ExpenseItem
                       key={expense.id}

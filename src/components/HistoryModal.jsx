@@ -14,10 +14,12 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm transition-all"
+      style={{ touchAction: "pan-x pan-y" }}
       onClick={onClose}
     >
       <div
         className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        style={{ touchAction: "pan-x pan-y" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
@@ -68,4 +70,3 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
     </div>
   );
 }
-

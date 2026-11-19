@@ -44,10 +44,12 @@ export default function MemberModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
+      style={{ touchAction: "pan-x pan-y" }}
       onClick={onClose}
     >
       <div
         className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        style={{ touchAction: "pan-x pan-y" }}
         onClick={(e) => {
           e.stopPropagation();
           setSwipedMember(null);
@@ -65,9 +67,7 @@ export default function MemberModal({
           </button>
         </div>
 
-        <div
-          className="flex-1 overflow-y-auto p-4"
-        >
+        <div className="flex-1 overflow-y-auto p-4">
           <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/30 p-3">
             <form onSubmit={handleAdd} className="flex gap-2">
               <input
@@ -75,7 +75,7 @@ export default function MemberModal({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="พิมพ์ชื่อเพื่อน..."
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
               />
               <button
                 type="submit"
@@ -89,7 +89,10 @@ export default function MemberModal({
             {!showNewPayForm ? (
               <button
                 type="button"
-                onClick={() => setShowNewPayForm(true)}
+                onClick={() => {
+                  setShowNewPayForm(true);
+                  setEditingMember(null);
+                }}
                 className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-400 hover:text-sky-300 transition"
               >
                 <Plus size={12} /> เพิ่มวิธีการชำระเงินให้{" "}
@@ -113,7 +116,7 @@ export default function MemberModal({
                   onChange={(e) =>
                     setNewPayForm({ ...newPayForm, promptpay: e.target.value })
                   }
-                  className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                  className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                 />
                 <p className="font-medium text-xs text-sky-400 ">หรือ</p>
                 <div className="flex gap-2">
@@ -122,7 +125,7 @@ export default function MemberModal({
                     onChange={(e) =>
                       setNewPayForm({ ...newPayForm, bankId: e.target.value })
                     }
-                    className="rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                    className="rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   >
                     {BANKS.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -137,7 +140,7 @@ export default function MemberModal({
                     onChange={(e) =>
                       setNewPayForm({ ...newPayForm, bankAcc: e.target.value })
                     }
-                    className="flex-1 rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+                    className="flex-1 rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -156,6 +159,7 @@ export default function MemberModal({
               return (
                 <MemberItem
                   key={member}
+                  setShowNewPayForm={setShowNewPayForm}
                   member={member}
                   hasDebt={hasDebt}
                   details={details}
@@ -164,7 +168,9 @@ export default function MemberModal({
                   swipedMember={swipedMember}
                   setSwipedMember={setSwipedMember}
                   isEditing={editingMember === member}
-                  onEdit={() => setEditingMember(editingMember === member ? null : member)}
+                  onEdit={() =>
+                    setEditingMember(editingMember === member ? null : member)
+                  }
                 />
               );
             })}

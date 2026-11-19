@@ -122,7 +122,7 @@ export default function ExpenseItem({
           transform: `translate3d(${currentOffset}px, 0, 0)`,
           transition: drag.active
             ? "none"
-            : "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease-out, box-shadow 0.5s ease-out",
+            : "transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease-out, box-shadow 0.5s ease-out, border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.1s",
           borderTopRightRadius: isSwiped ? "24px" : "0px",
           borderBottomRightRadius: isSwiped ? "24px" : "0px",
         }}

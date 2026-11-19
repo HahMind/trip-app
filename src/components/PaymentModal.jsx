@@ -14,7 +14,8 @@ export default function PaymentModal({
   onConfirm,
 }) {
   const details = memberDetails[to] || {};
-  const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
+  // const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
+  const [tab, setTab] = useState("qr");
   const [form, setForm] = useState({
     promptpay: details.promptpay || "",
     bankId: details.bankId || "kbank",
@@ -46,10 +47,12 @@ export default function PaymentModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4 backdrop-blur-sm"
+      style={{ touchAction: "pan-x pan-y" }}
       onClick={onClose}
     >
       <div
         className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
+        style={{ touchAction: "pan-x pan-y" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-gray-800 p-4 text-center">
@@ -106,7 +109,7 @@ export default function PaymentModal({
                       setForm({ ...form, promptpay: e.target.value })
                     }
                     placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
-                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   />
                   <button
                     onClick={handleSaveDetails}
@@ -171,7 +174,7 @@ export default function PaymentModal({
                     onChange={(e) =>
                       setForm({ ...form, bankId: e.target.value })
                     }
-                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   >
                     {BANKS.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -186,7 +189,7 @@ export default function PaymentModal({
                       setForm({ ...form, bankAcc: e.target.value })
                     }
                     placeholder="เลขบัญชี..."
-                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   />
                   <button
                     onClick={handleSaveDetails}
