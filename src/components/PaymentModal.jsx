@@ -1,4 +1,4 @@
-import { CheckCircle, Copy, Wallet } from "lucide-react";
+import { CheckCircle, Copy } from "lucide-react";
 import { useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
 import { formatMoney, openBankApp } from "../utils/trip";
@@ -130,7 +130,7 @@ export default function PaymentModal({
                       {details.bankAcc}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div>
                     <button
                       onClick={() =>
                         openBankApp(
@@ -139,21 +139,9 @@ export default function PaymentModal({
                           "คัดลอกเลขบัญชีแล้ว",
                         )
                       }
-                      className="flex flex-col items-center gap-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-xs text-gray-300 transition hover:bg-gray-700"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm text-gray-300 transition hover:bg-gray-700"
                     >
-                      <Copy size={16} /> 1. ก๊อปเลขบัญชี
-                    </button>
-                    <button
-                      onClick={() =>
-                        openBankApp(
-                          amount.toString(),
-                          selectedBank?.scheme,
-                          "คัดลอกยอดเงินแล้ว",
-                        )
-                      }
-                      className="flex flex-col items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 py-3 text-xs text-sky-400 transition hover:bg-sky-500/20"
-                    >
-                      <Wallet size={16} /> 2. ก๊อปยอดเงิน
+                      <Copy size={16} /> ก๊อปเลขบัญชีและเปิดแอปธนาคาร
                     </button>
                   </div>
                   <p className="text-center text-[10px] text-gray-500">

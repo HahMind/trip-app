@@ -2,7 +2,6 @@ import {
   Edit2,
   Receipt,
   WifiOff,
-  Loader2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -30,7 +29,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.3.0";
+const version_number = "2.3.1";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -333,7 +332,8 @@ export default function App() {
         category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
 
-    if (editId) {
+    const wasEditing = Boolean(editId);
+    if (wasEditing) {
       const { error } = await supabase
         .from("trip_expenses")
         .update(payload)
@@ -362,11 +362,15 @@ export default function App() {
     await refreshExpenses(); // โหลดใหม่ทันที
     setItem("");
     setAmount("");
+    setDate(getTodayISO());
     setCategory(CATEGORIES[0]);
+    setOdometerStart("");
+    setOdometerEnd("");
+    localStorage.setItem("lastOdometerEnd", "");
     Swal.fire({
       ...SWAL_THEME,
       icon: "success",
-      title: editId ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
+      title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
       timer: 1000,
       showConfirmButton: false,
     });
@@ -396,9 +400,12 @@ export default function App() {
 
   const cancelEdit = () => {
     setEditId(null);
+    setDate(getTodayISO());
     setItem("");
     setAmount("");
     setCategory(CATEGORIES[0]);
+    setOdometerStart("");
+    setOdometerEnd("");
   };
 
   const handleDelete = async (id) => {
@@ -543,22 +550,6 @@ export default function App() {
 
   const settlements = useSettlements(expenses, MEMBERS);
 
-  // หน้าจอตอนออฟไลน์ (บังมิด อ่านได้อย่างเดียวไม่ได้)
-  if (isOffline) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
-        <WifiOff size={48} className="mb-4 text-red-500 opacity-80" />
-        <h1 className="mb-2 text-xl font-bold text-gray-100">
-          ไม่มีสัญญาณอินเทอร์เน็ต
-        </h1>
-        <p className="mb-6 text-sm text-gray-400">
-          กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดข้อมูลการหารเงินของทริปนี้
-        </p>
-        <Loader2 size={24} className="animate-spin text-lime-400" />
-      </div>
-    );
-  }
-
   // หน้าจอตอนกำลังโหลดข้อมูลตอนเปิดแอปครั้งแรก
   // if (loading) {
   //   return (
@@ -584,6 +575,16 @@ export default function App() {
         {version_number}
       </div>
 
+      {isOffline && (
+        <div
+          role="status"
+          className="sticky top-0 z-40 flex items-center justify-center gap-2 border-b border-amber-500/40 bg-amber-500/95 px-3 py-2 text-center text-xs font-bold text-gray-950"
+        >
+          <WifiOff size={14} />
+          <span>ออฟไลน์อยู่ — ดูข้อมูลล่าสุดจากเครื่อง</span>
+        </div>
+      )}
+
       <TripHeader
         totalExpense={totalExpense}
         isSyncing={loading || isSyncing}
@@ -597,7 +598,11 @@ export default function App() {
 
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
         <section
-          className={`rounded-xl border p-5 shadow-sm transition-colors ${editId ? "border-yellow-400 bg-gray-900" : "border-gray-700 bg-gray-900"}`}
+          className={`rounded-xl border p-5 shadow-sm transition-colors ${
+            editId
+              ? "border-yellow-400 bg-yellow-100/15"
+              : "border-gray-700 bg-gray-900"
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">

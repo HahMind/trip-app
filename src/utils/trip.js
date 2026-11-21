@@ -42,12 +42,14 @@ export const formatMoney = (value) =>
   });
 
 export const openBankApp = async (textToCopy, scheme, title) => {
-  let copyPromise;
+  let copied = false;
   if (navigator.clipboard?.writeText) {
-    copyPromise = navigator.clipboard
-      .writeText(textToCopy)
-      .then(() => true)
-      .catch(() => false);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      copied = true;
+    } catch {
+      copied = false;
+    }
   } else {
     const textarea = document.createElement("textarea");
     textarea.value = textToCopy;
@@ -55,13 +57,9 @@ export const openBankApp = async (textToCopy, scheme, title) => {
     textarea.style.opacity = "0";
     document.body.appendChild(textarea);
     textarea.select();
-    copyPromise = Promise.resolve(document.execCommand("copy"));
+    copied = document.execCommand("copy");
     textarea.remove();
   }
-
-  if (scheme) window.location.href = scheme;
-
-  const copied = await copyPromise;
 
   if (!copied) {
     Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
@@ -72,10 +70,14 @@ export const openBankApp = async (textToCopy, scheme, title) => {
     ...SWAL_THEME,
     icon: "success",
     title,
-    text: scheme ? "คัดลอกแล้ว กำลังเปิดแอปธนาคาร..." : "คัดลอกเรียบร้อยแล้ว",
-    timer: 1500,
+    text: scheme
+      ? "ก๊อปเลขบัญชีแล้ว"
+      : "คัดลอกเลขบัญชีเรียบร้อยแล้ว",
+    timer: 1000,
     showConfirmButton: false,
   });
+
+  if (scheme) window.location.href = scheme;
 };
 // ดึงข้อมูลคิวที่ค้างซิงค์ (Get pending sync queue)
 export const getOfflineQueue = () => {

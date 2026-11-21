@@ -1,4 +1,4 @@
-import { Edit2, Plus, Trash2 } from "lucide-react";
+import { Edit2, Trash2, Users } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatMoney } from "../utils/trip";
 import useSwipeDrag from "../hooks/useSwipeDrag";
@@ -119,19 +119,21 @@ export default function ExpenseItem({
             </p>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <p className="pointer-events-none font-bold text-gray-100">
             ฿{formatMoney(expense.amount)}
           </p>
-          <div className="relative z-20 flex gap-4">
+          <div className="relative z-20 flex items-center gap-2">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenSplitModal(expense);
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:text-sky-400"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
+              title="เลือกคนหาร"
+              aria-label="เลือกคนหาร"
             >
-              <Plus size={20} />
+              <Users size={19} />
             </button>
             <button
               onClick={(e) => {
@@ -139,7 +141,9 @@ export default function ExpenseItem({
                 onEdit(expense);
                 setSwipedId(null);
               }}
-              className="text-gray-400 transition hover:text-lime-400"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition hover:bg-lime-400/10 hover:text-lime-400"
+              title="แก้ไขรายการ"
+              aria-label="แก้ไขรายการ"
             >
               <Edit2 size={20} />
             </button>
