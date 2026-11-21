@@ -119,13 +119,13 @@ export default function MemberModal({
                   className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                 />
                 <p className="font-medium text-xs text-sky-400 ">หรือ</p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 ">
                   <select
                     value={newPayForm.bankId}
                     onChange={(e) =>
                       setNewPayForm({ ...newPayForm, bankId: e.target.value })
                     }
-                    className="rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                    className="flex rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   >
                     {BANKS.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -140,7 +140,7 @@ export default function MemberModal({
                     onChange={(e) =>
                       setNewPayForm({ ...newPayForm, bankAcc: e.target.value })
                     }
-                    className="flex-1 rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                    className="flex rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none w-full"
                   />
                 </div>
               </div>

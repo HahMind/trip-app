@@ -211,7 +211,7 @@ export default function PaymentModal({
             </button>
             <button
               onClick={handleConfirmPay}
-              className="flex-[2] flex items-center justify-center gap-1 rounded-lg bg-lime-400 py-3 text-sm font-bold text-gray-950 hover:bg-lime-300 transition"
+              className="flex-2 flex items-center justify-center gap-1 rounded-lg bg-lime-400 py-3 text-sm font-bold text-gray-950 hover:bg-lime-300 transition"
             >
               <CheckCircle size={16} /> ยืนยันโอนสำเร็จ
             </button>

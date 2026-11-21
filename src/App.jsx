@@ -7,6 +7,7 @@ import {
   Users,
   WifiOff,
   Loader2,
+  Palette,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -31,7 +32,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.2.1-pinchCancel";
+const version_number = "2.2.2-pinchCanceled_ThemeMenu";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -50,6 +51,10 @@ export default function App() {
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState({});
   const [showHistory, setShowHistory] = useState(false);
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("tripTheme") || "dark",
+  );
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [activePayment, setActivePayment] = useState(null);
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
@@ -61,6 +66,11 @@ export default function App() {
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("tripTheme", theme);
+  }, [theme]);
 
   const [odometerStart, setOdometerStart] = useState(
     () => localStorage.getItem("lastOdometerEnd") || "",
@@ -126,6 +136,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const preventPinch = (event) => {
+      if (event.touches && event.touches.length > 1) {
+        event.preventDefault();
+      }
+    };
+    const preventGesture = (event) => event.preventDefault();
+
+    document.addEventListener("touchmove", preventPinch, { passive: false });
+    document.addEventListener("gesturestart", preventGesture, { passive: false });
+    document.addEventListener("gesturechange", preventGesture, { passive: false });
+
+    return () => {
+      document.removeEventListener("touchmove", preventPinch);
+      document.removeEventListener("gesturestart", preventGesture);
+      document.removeEventListener("gesturechange", preventGesture);
+    };
+  }, []);
+
+  useEffect(() => {
     // 1. เช็กสถานะอินเทอร์เน็ตตั้งต้นของเครื่องทันทีที่เปิดแอป
     setIsOffline(!navigator.onLine);
 
@@ -181,6 +210,7 @@ export default function App() {
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
+    if (themeMenuOpen) setThemeMenuOpen(false);
   };
 
   // บันทึกตรงเข้า Database
@@ -632,6 +662,7 @@ export default function App() {
   return (
     <div
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
+      data-theme={theme}
       onClick={handleAppClick}
     >
       <style>{`
@@ -822,9 +853,20 @@ export default function App() {
         </div>
 
         <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
-          <h2 className="mb-4 flex items-center gap-2 font-bold text-lime-400">
-            <Users size={20} /> สรุปเคลียร์เงิน
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 font-bold text-lime-400">
+              <Users size={20} /> สรุปเคลียร์เงิน
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/15 text-amber-400 transition hover:bg-amber-500 hover:text-gray-950"
+              title="ประวัติการชำระ"
+              aria-label="ประวัติการชำระ"
+            >
+              <History size={18} />
+            </button>
+          </div>
           <div className="space-y-2">
             {settlements.transfers.length === 0 ? (
               <p className="py-2 text-center text-sm text-gray-400">
@@ -859,32 +901,49 @@ export default function App() {
         </section>
       </main>
 
-      <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-6 z-40 flex items-center justify-center">
-        {/* ปิดแอนิเมชันและการทำงานกดค้างเพื่อเลื่อนไปด้านบน
-        {isPressing && (
-          <svg
-            className="absolute inset-0 h-[68px] w-[68px] -translate-x-[2px] -translate-y-[2px] -rotate-90 pointer-events-none"
-            viewBox="0 0 64 64"
-          >
-            <circle
-              cx="32"
-              cy="32"
-              r="28"
-              stroke="#D7FF3B"
-              strokeWidth="4"
-              fill="none"
-              strokeDasharray="176"
-              strokeDashoffset="176"
-              className="animate-draw-fast"
-            />
-          </svg>
-        )}
-        */}
+      <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 h-14 w-14">
+        {[
+          { id: "dark", color: "#111827", transform: "translate(-8px, -132px)" },
+          { id: "light", color: "#bfe8cf", transform: "translate(-74px, -112px)" },
+          { id: "purple", color: "#9b87c9", transform: "translate(-126px, -70px)" },
+        ].map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => {
+              setTheme(option.id);
+              setThemeMenuOpen(false);
+            }}
+            className="absolute bottom-0 right-0 h-11 w-11 rounded-full border-2 border-white/80 shadow-lg transition-all duration-300"
+            style={{
+              backgroundColor: option.color,
+              transform: themeMenuOpen ? option.transform : "translate(0, 0) scale(0)",
+              opacity: themeMenuOpen ? 1 : 0,
+              pointerEvents: themeMenuOpen ? "auto" : "none",
+            }}
+            title={
+              option.id === "dark"
+                ? "ธีมเขียวดำ"
+                : option.id === "light"
+                  ? "ธีมเขียวอ่อน-ขาว"
+                  : "ธีมเทา-ม่วง"
+            }
+            aria-label={
+              option.id === "dark"
+                ? "ใช้ธีมเขียวดำ"
+                : option.id === "light"
+                  ? "ใช้ธีมเขียวอ่อน-ขาว"
+                  : "ใช้ธีมเทา-ม่วง"
+            }
+          />
+        ))}
         <button
-          onClick={() => setShowHistory(true)}
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500 text-gray-950 shadow-xl transition-all duration-200 hover:bg-amber-600"
+          type="button"
+          onClick={() => setThemeMenuOpen((open) => !open)}
+          className="absolute bottom-0 right-0 flex h-14 w-14 items-center justify-center rounded-full border border-lime-400/40 bg-lime-400 text-gray-950 shadow-xl transition-all duration-200 hover:scale-105"
+          aria-label="เปลี่ยนธีม"
         >
-          <History size={28} />
+          <Palette size={24} />
         </button>
       </div>
 
