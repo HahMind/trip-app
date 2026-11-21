@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { formatMoney } from "../utils/trip";
 import ModalShell from "./ModalShell";
 
-export default function HistoryModal({ expenses, onClose, onUndo }) {
+export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId }) {
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") onClose();
@@ -52,7 +52,12 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
                     </p>
                     <button
                       onClick={() => onUndo(expense.id)}
-                      className="ml-2 flex items-center gap-1 rounded-3xl border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs text-sky-400 transition hover:bg-sky-500 hover:text-gray-950"
+                      disabled={pendingHistoryId === expense.id}
+                      className={`ml-2 flex items-center gap-1 rounded-3xl border px-2 py-1 text-xs transition ${
+                        pendingHistoryId === expense.id
+                          ? "cursor-not-allowed border-gray-500 bg-gray-500 text-gray-300 shimmer"
+                          : "border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-gray-950"
+                      }`}
                     >
                       <RotateCcw size={14} /> กู้คืน
                     </button>

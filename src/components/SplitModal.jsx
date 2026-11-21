@@ -4,6 +4,7 @@ import { formatMoney } from "../utils/trip";
 import ModalShell from "./ModalShell";
 
 export default function SplitModal({ expense, members, onClose, onSave }) {
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedSplit, setSelectedSplit] = useState(() => {
     const rawSplit =
       expense?.split_between?.length > 0
@@ -62,7 +63,7 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
                 type="checkbox"
                 checked={isAllSelected}
                 onChange={handleToggleAll}
-                className="h-3.5 w-3.5 rounded accent-lime-400 cursor-pointer"
+                className="split-check h-3.5 w-3.5 cursor-pointer"
               />
               <span>เลือกทุกคน</span>
             </label>
@@ -80,7 +81,7 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
                   type="checkbox"
                   checked={selectedSplit.includes(member)}
                   onChange={() => handleToggle(member)}
-                  className="h-4 w-4 rounded accent-lime-400 cursor-pointer"
+                  className="split-check h-4 w-4 cursor-pointer"
                 />
               </label>
             ))}
@@ -95,13 +96,20 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
             </button>
             <button
               type="button"
-              onClick={() => {
-                onSave(expense.id, selectedSplit);
-                onClose();
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                const success = await onSave(expense.id, selectedSplit);
+                setIsSaving(false);
+                if (success) onClose();
               }}
-              className="flex-1 rounded-lg bg-lime-400 py-2.5 text-xs font-bold text-gray-950 transition hover:bg-lime-300"
+              className={`flex-1 rounded-lg py-2.5 text-xs font-bold text-gray-950 transition ${
+                isSaving
+                  ? "cursor-not-allowed bg-gray-500 shimmer"
+                  : "bg-lime-400 hover:bg-lime-300"
+              }`}
             >
-              ตกลง
+              {isSaving ? "กำลังบันทึก..." : "ตกลง"}
             </button>
           </div>
         </div>

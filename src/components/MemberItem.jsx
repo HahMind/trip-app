@@ -14,6 +14,7 @@ export default function MemberItem({
   isEditing,
   onEdit,
   setShowNewPayForm,
+  isPending,
 }) {
   const [form, setForm] = useState({
     promptpay: details?.promptpay || "",
@@ -43,8 +44,11 @@ export default function MemberItem({
       <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
         <button
           onClick={() => onRemove(member, hasDebt)}
+          disabled={isPending}
           className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
-            hasDebt
+            isPending
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
               : "bg-red-500 text-white hover:bg-red-600"
           }`}
@@ -61,8 +65,11 @@ export default function MemberItem({
             onRemove(member, hasDebt);
             setSwipedMember(null);
           }}
+          disabled={isPending}
           className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
-            hasDebt
+            isPending
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
               : "bg-red-500 text-white hover:bg-red-600"
           }`}

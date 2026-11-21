@@ -5,6 +5,7 @@ export default function SettlementSection({
   settlements,
   onOpenPayment,
   onOpenHistory,
+  pendingSettlement,
 }) {
   return (
     <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
@@ -45,7 +46,12 @@ export default function SettlementSection({
               </div>
               <button
                 onClick={() => onOpenPayment(transfer)}
-                className="m-auto flex w-10/12 items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
+                disabled={Boolean(pendingSettlement)}
+                className={`m-auto flex w-10/12 items-center justify-center gap-1 rounded py-2 text-xs text-gray-950 shadow-sm transition ${
+                  pendingSettlement
+                    ? "cursor-not-allowed bg-gray-500 shimmer"
+                    : "bg-lime-500 hover:bg-lime-300"
+                }`}
               >
                 <CheckCircle size={14} /> เคลียร์ยอดนี้
               </button>

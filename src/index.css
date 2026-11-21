@@ -20,9 +20,9 @@ html[data-theme="light"],
   --theme-800: #edf5f1;
   --theme-700: #d0dfd6;
   --theme-600: #b7cbbf;
-  --theme-text: #17342a;
-  --theme-text-strong: #10251d;
-  --theme-text-muted: #668276;
+  --theme-text: #10251d;
+  --theme-text-strong: #071812;
+  --theme-text-muted: #3f6254;
   --theme-accent: #4d9f7a;
   --theme-accent-hover: #69b591;
   --theme-accent-soft: #dcefe5;
@@ -38,9 +38,9 @@ html[data-theme="purple"],
   --theme-800: #e7e3ef;
   --theme-700: #cbc5d8;
   --theme-600: #afa7c2;
-  --theme-text: #30263f;
-  --theme-text-strong: #231930;
-  --theme-text-muted: #766c86;
+  --theme-text: #231930;
+  --theme-text-strong: #161020;
+  --theme-text-muted: #5d516e;
   --theme-accent: #7c64a6;
   --theme-accent-hover: #927db5;
   --theme-accent-soft: #ddd7e9;
@@ -178,4 +178,55 @@ html, body {
   color: #f3f4f6;
   overscroll-behavior: none;
   overscroll-behavior-y: none;
+}
+
+.split-check {
+  accent-color: #a3e635;
+}
+
+[data-theme="light"] .split-check {
+  accent-color: #3f8f67;
+}
+
+[data-theme="purple"] .split-check {
+  accent-color: #7c64a6;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.38),
+    transparent
+  );
+  animation: shimmer 1.1s infinite;
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+[data-theme="light"] .swal2-popup,
+[data-theme="purple"] .swal2-popup {
+  background: var(--theme-900) !important;
+  color: var(--theme-text-strong) !important;
+  border: 1px solid var(--theme-700) !important;
+}
+
+[data-theme="light"] .swal2-title,
+[data-theme="purple"] .swal2-title,
+[data-theme="light"] .swal2-html-container,
+[data-theme="purple"] .swal2-html-container {
+  color: var(--theme-text-strong) !important;
 }

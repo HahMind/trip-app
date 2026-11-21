@@ -3,7 +3,7 @@ import {
   Receipt,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
@@ -29,7 +29,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.3.1";
+const version_number = "2.3.2";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -54,6 +54,14 @@ export default function App() {
   const [editId, setEditId] = useState(null);
   const [swipedId, setSwipedId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+  const [pendingMemberAction, setPendingMemberAction] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingSplitId, setPendingSplitId] = useState(null);
+  const [pendingSettlement, setPendingSettlement] = useState(null);
+  const [pendingHistoryId, setPendingHistoryId] = useState(null);
+  const expenseSubmitLock = useRef(false);
+  const settlementSubmitLock = useRef(false);
   usePinchGuard();
 
   const [date, setDate] = useState(getTodayISO());
@@ -184,6 +192,7 @@ export default function App() {
 
   // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
+    if (pendingMemberAction) return;
     // 1. ตรวจสอบสถานะการเชื่อมต่ออินเทอร์เน็ต
     if (isOffline)
       return Swal.fire({
@@ -194,34 +203,36 @@ export default function App() {
       });
 
     if (!MEMBERS.includes(name)) {
+      setPendingMemberAction(name);
       // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
-      const { error } = await supabase.from("trip_members").insert([{ name }]);
-      if (error)
-        return Swal.fire({
+      try {
+        const { error } = await supabase.from("trip_members").insert([{ name }]);
+        if (error) throw error;
+
+        setPaidBy(name);
+        localStorage.setItem("defaultPaidBy", name);
+
+        await refreshMembers();
+
+        if (details) handleUpdateMemberDetails(name, details, false);
+
+        Swal.fire({
+          ...SWAL_THEME,
+          icon: "success",
+          title: "เพิ่ม " + name + " สำเร็จ",
+          timer: 1000,
+          showConfirmButton: false,
+        });
+      } catch (error) {
+        Swal.fire({
           ...SWAL_THEME,
           icon: "error",
           title: "เพิ่มไม่สำเร็จ",
           text: error.message,
         });
-
-      // 3. ตั้งค่าให้สมาชิกใหม่เป็นผู้จ่ายเงินสำรองทันที ทั้งใน State และ localStorage
-      setPaidBy(name);
-      localStorage.setItem("defaultPaidBy", name);
-
-      // 4. ดึงข้อมูลสมาชิกอัปเดตล่าสุดจากเซิร์ฟเวอร์
-      await refreshMembers();
-
-      // 5. หากมีการกรอกข้อมูลการชำระเงินเพิ่มเติม ให้ทำการบันทึกข้อมูลต่อทันที
-      if (details) handleUpdateMemberDetails(name, details, false);
-
-      // 6. แสดงการแจ้งเตือนบันทึกสำเร็จ
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
-        title: "เพิ่ม " + name + " สำเร็จ",
-        timer: 1000,
-        showConfirmButton: false,
-      });
+      } finally {
+        setPendingMemberAction(null);
+      }
     }
   };
 
@@ -240,6 +251,7 @@ export default function App() {
   };
 
   const handleRemoveMember = async (name, hasDebt) => {
+    if (pendingMemberAction) return;
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -276,31 +288,36 @@ export default function App() {
       },
     });
     if (!result.isConfirmed) return;
-
-    const { error } = await supabase
-      .from("trip_members")
-      .delete()
-      .eq("name", name);
-    if (error)
-      return Swal.fire({
+    setPendingMemberAction(name);
+    try {
+      const { error } = await supabase
+        .from("trip_members")
+        .delete()
+        .eq("name", name);
+      if (error) throw error;
+      await refreshMembers();
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "success",
+        title: `ลบ ${name} แล้ว`,
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
         ...SWAL_THEME,
         icon: "error",
         title: "ลบไม่สำเร็จ",
         text: error.message,
       });
-
-    await refreshMembers(); // โหลดใหม่ทันที
-    Swal.fire({
-      ...SWAL_THEME,
-      icon: "success",
-      title: `ลบ ${name} แล้ว`,
-      timer: 1000,
-      showConfirmButton: false,
-    });
+    } finally {
+      setPendingMemberAction(null);
+    }
   };
 
   const handleAddExpense = async (event) => {
     event.preventDefault();
+    if (expenseSubmitLock.current) return;
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -316,6 +333,9 @@ export default function App() {
         icon: "warning",
         title: "กรุณากรอกจำนวนเงิน",
       });
+
+    expenseSubmitLock.current = true;
+    setIsSubmittingExpense(true);
 
     const payload = {
       expense_date: formatForDB(date),
@@ -333,69 +353,79 @@ export default function App() {
     };
 
     const wasEditing = Boolean(editId);
-    if (wasEditing) {
-      const { error } = await supabase
-        .from("trip_expenses")
-        .update(payload)
-        .eq("id", editId);
-      if (error)
-        return Swal.fire({
-          ...SWAL_THEME,
-          icon: "error",
-          title: "แก้ไขไม่สำเร็จ",
-          text: error.message,
-        });
-      setEditId(null);
-      setHighlightedId(editId);
-      setTimeout(() => setHighlightedId(null), 2000);
-    } else {
-      const { error } = await supabase.from("trip_expenses").insert([payload]);
-      if (error)
-        return Swal.fire({
-          ...SWAL_THEME,
-          icon: "error",
-          title: "บันทึกไม่สำเร็จ",
-          text: error.message,
-        });
-    }
+    try {
+      if (wasEditing) {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error) throw error;
+        setEditId(null);
+        setHighlightedId(editId);
+        setTimeout(() => setHighlightedId(null), 2000);
+      } else {
+        const { error } = await supabase.from("trip_expenses").insert([payload]);
+        if (error) throw error;
+      }
 
-    await refreshExpenses(); // โหลดใหม่ทันที
-    setItem("");
-    setAmount("");
-    setDate(getTodayISO());
-    setCategory(CATEGORIES[0]);
-    setOdometerStart("");
-    setOdometerEnd("");
-    localStorage.setItem("lastOdometerEnd", "");
-    Swal.fire({
-      ...SWAL_THEME,
-      icon: "success",
-      title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
-      timer: 1000,
-      showConfirmButton: false,
-    });
+      await refreshExpenses();
+      setItem("");
+      setAmount("");
+      setCategory(CATEGORIES[0]);
+      setOdometerStart("");
+      setOdometerEnd("");
+      localStorage.setItem("lastOdometerEnd", "");
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "success",
+        title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "error",
+        title: wasEditing ? "แก้ไขไม่สำเร็จ" : "บันทึกไม่สำเร็จ",
+        text: error.message,
+      });
+    } finally {
+      expenseSubmitLock.current = false;
+      setIsSubmittingExpense(false);
+    }
   };
 
   const handleUpdateSplit = async (id, newSplit) => {
-    if (isOffline)
-      return Swal.fire({
+    if (pendingSplitId) return false;
+    if (isOffline) {
+      Swal.fire({
         ...SWAL_THEME,
         icon: "warning",
         title: "ออฟไลน์",
         text: "ไม่สามารถแก้ไขการหารขณะออฟไลน์ได้",
       });
-    const { error } = await supabase
-      .from("trip_expenses")
-      .update({ split_between: newSplit })
-      .eq("id", id);
-    if (error)
-      return Swal.fire({
+      return false;
+    }
+    setPendingSplitId(id);
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .update({ split_between: newSplit })
+        .eq("id", id);
+      if (error) throw error;
+      await refreshExpenses();
+      return true;
+    } catch (error) {
+      Swal.fire({
         ...SWAL_THEME,
         icon: "error",
         title: "อัปเดตไม่สำเร็จ",
         text: error.message,
       });
-    await refreshExpenses();
+      return false;
+    } finally {
+      setPendingSplitId(null);
+    }
   };
 
   const cancelEdit = () => {
@@ -409,6 +439,7 @@ export default function App() {
   };
 
   const handleDelete = async (id) => {
+    if (pendingDeleteId) return;
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -428,22 +459,36 @@ export default function App() {
       },
     });
     if (r.isConfirmed) {
-      const { error } = await supabase
-        .from("trip_expenses")
-        .delete()
-        .eq("id", id);
-      if (error)
-        return Swal.fire({
+      setPendingDeleteId(id);
+      try {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+        await refreshExpenses();
+        Swal.fire({
+          ...SWAL_THEME,
+          icon: "success",
+          title: "ลบรายการแล้ว",
+          timer: 800,
+          showConfirmButton: false,
+        });
+      } catch (error) {
+        Swal.fire({
           ...SWAL_THEME,
           icon: "error",
           title: "ลบไม่สำเร็จ",
           text: error.message,
         });
-      await refreshExpenses();
+      } finally {
+        setPendingDeleteId(null);
+      }
     }
   };
 
   const handleUndoHistory = async (id) => {
+    if (pendingHistoryId) return;
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -451,30 +496,35 @@ export default function App() {
         title: "ออฟไลน์",
         text: "ไม่สามารถทำรายการขณะออฟไลน์ได้",
       });
-    const { error } = await supabase
-      .from("trip_expenses")
-      .delete()
-      .eq("id", id);
-    if (error)
-      return Swal.fire({
+    setPendingHistoryId(id);
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      await refreshExpenses();
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "success",
+        title: "กู้คืนยอดเรียบร้อย",
+        timer: 1000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
         ...SWAL_THEME,
         icon: "error",
         title: "กู้คืนไม่สำเร็จ",
         text: error.message,
       });
-
-    await refreshExpenses();
-    // 👈 เพิ่มแจ้งเตือนให้รู้ว่ากดกู้คืนสำเร็จแล้ว
-    Swal.fire({
-      ...SWAL_THEME,
-      icon: "success",
-      title: "กู้คืนยอดเรียบร้อย",
-      timer: 1000,
-      showConfirmButton: false,
-    });
+    } finally {
+      setPendingHistoryId(null);
+    }
   };
 
   const handleSettleDebt = async (from, to, settleAmount) => {
+    if (settlementSubmitLock.current) return;
     if (isOffline)
       return Swal.fire({
         ...SWAL_THEME,
@@ -493,25 +543,31 @@ export default function App() {
       split_between: [from], // 👈 🧠 เพิ่มบรรทัดนี้เข้ามา! เพื่อแก้บั๊กไม่ให้ฐานข้อมูลเตือน Error
     };
 
-    const { error } = await supabase.from("trip_expenses").insert([newHistory]);
-    if (error)
-      return Swal.fire({
+    settlementSubmitLock.current = true;
+    setPendingSettlement(`${from}-${to}`);
+    try {
+      const { error } = await supabase.from("trip_expenses").insert([newHistory]);
+      if (error) throw error;
+      setActivePayment(null);
+      await refreshExpenses();
+      Swal.fire({
+        ...SWAL_THEME,
+        icon: "success",
+        title: "บันทึกประวัติการโอนแล้ว",
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
         ...SWAL_THEME,
         icon: "error",
         title: "บันทึกไม่สำเร็จ",
         text: error.message,
       });
-
-    setActivePayment(null);
-    await refreshExpenses();
-    // 👈 เพิ่มแจ้งเตือนให้รู้ว่าบันทึกประวัติสำเร็จ
-    Swal.fire({
-      ...SWAL_THEME,
-      icon: "success",
-      title: "บันทึกประวัติการโอนแล้ว",
-      timer: 1200,
-      showConfirmButton: false,
-    });
+    } finally {
+      settlementSubmitLock.current = false;
+      setPendingSettlement(null);
+    }
   };
 
   // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
@@ -721,17 +777,27 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-2 rounded-lg bg-yellow-400 py-3 font-bold text-gray-950 transition hover:bg-yellow-300"
+                  disabled={isSubmittingExpense}
+                  className={`flex-2 rounded-lg py-3 font-bold text-gray-950 transition ${
+                    isSubmittingExpense
+                      ? "cursor-not-allowed bg-gray-500 shimmer"
+                      : "bg-yellow-400 hover:bg-yellow-300"
+                  }`}
                 >
-                  บันทึกแก้ไข
+                  {isSubmittingExpense ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
                 </button>
               </div>
             ) : (
               <button
                 type="submit"
-                className="w-full rounded-lg bg-lime-400 py-3 font-bold text-gray-950 transition hover:bg-lime-300"
+                disabled={isSubmittingExpense}
+                className={`w-full rounded-lg py-3 font-bold text-gray-950 transition ${
+                  isSubmittingExpense
+                    ? "cursor-not-allowed bg-gray-500 shimmer"
+                    : "bg-lime-400 hover:bg-lime-300"
+                }`}
               >
-                บันทึกรายการ
+                {isSubmittingExpense ? "กำลังบันทึก..." : "บันทึกรายการ"}
               </button>
             )}
           </form>
@@ -761,6 +827,8 @@ export default function App() {
             }}
             onDelete={handleDelete}
             onOpenSplitModal={setActiveSplitExpense}
+            pendingDeleteId={pendingDeleteId}
+            pendingSplitId={pendingSplitId}
             swipedId={swipedId}
             setSwipedId={setSwipedId}
             highlightedId={highlightedId}
@@ -772,6 +840,7 @@ export default function App() {
           settlements={settlements}
           onOpenPayment={setActivePayment}
           onOpenHistory={() => setShowHistory(true)}
+          pendingSettlement={pendingSettlement}
         />
       </main>
 
@@ -786,6 +855,7 @@ export default function App() {
           onAdd={handleAddMember}
           onRemove={handleRemoveMember}
           onUpdateDetails={handleUpdateMemberDetails}
+          pendingMemberAction={pendingMemberAction}
         />
       )}
       {activePayment && (
@@ -797,6 +867,7 @@ export default function App() {
           onClose={() => setActivePayment(null)}
           onUpdateDetails={handleUpdateMemberDetails}
           onConfirm={handleSettleDebt}
+          isSubmitting={Boolean(pendingSettlement)}
         />
       )}
       {activeSplitExpense && (
@@ -812,6 +883,7 @@ export default function App() {
           expenses={historyExpenses}
           onClose={() => setShowHistory(false)}
           onUndo={handleUndoHistory}
+          pendingHistoryId={pendingHistoryId}
         />
       )}
     </div>

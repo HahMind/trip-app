@@ -17,6 +17,8 @@ export default function ExpenseList({
   setSwipedId,
   highlightedId, 
   MEMBERS,
+  pendingDeleteId,
+  pendingSplitId,
 }) {
   useEffect(() => {
     const handleScroll = () => {
@@ -94,6 +96,8 @@ export default function ExpenseList({
                       isLast={index === groupedExpenses[date].length - 1}
                       isHighlighted={highlightedId === expense.id} 
                       MEMBERS={MEMBERS}
+                      isPendingDelete={pendingDeleteId === expense.id}
+                      isPendingSplit={pendingSplitId === expense.id}
                     />
                   ))}
                 </div>

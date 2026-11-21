@@ -13,6 +13,8 @@ export default function ExpenseItem({
   onOpenSplitModal,
   isLast,
   isHighlighted, //  รับ State การ Highlight
+  isPendingDelete,
+  isPendingSplit,
 }) {
   const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
@@ -61,7 +63,12 @@ export default function ExpenseItem({
             onDelete(expense.id);
             setSwipedId(null);
           }}
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+          disabled={isPendingDelete}
+          className={`flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition ${
+            isPendingDelete
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : "bg-red-500 hover:bg-red-600"
+          }`}
           style={{
             opacity: Math.min(1, -currentOffset / 40),
             transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
@@ -125,11 +132,16 @@ export default function ExpenseItem({
           </p>
           <div className="relative z-20 flex items-center gap-2">
             <button
+              disabled={isPendingSplit}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenSplitModal(expense);
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-600 text-gray-400 transition hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
+              className={`flex h-10 w-10 items-center justify-center rounded-full border text-gray-400 transition ${
+                isPendingSplit
+                  ? "cursor-not-allowed border-gray-500 bg-gray-500 shimmer"
+                  : "border-gray-600 hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
+              }`}
               title="เลือกคนหาร"
               aria-label="เลือกคนหาร"
             >

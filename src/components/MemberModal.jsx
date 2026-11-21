@@ -12,6 +12,7 @@ export default function MemberModal({
   onAdd,
   onRemove,
   onUpdateDetails,
+  pendingMemberAction,
 }) {
   const [newName, setNewName] = useState("");
   const [showNewPayForm, setShowNewPayForm] = useState(false);
@@ -72,8 +73,12 @@ export default function MemberModal({
               />
               <button
                 type="submit"
-                disabled={!newName.trim()}
-                className="flex items-center gap-1 rounded-lg bg-lime-400 px-4 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 disabled:opacity-50"
+                disabled={!newName.trim() || Boolean(pendingMemberAction)}
+                className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-bold text-gray-950 transition ${
+                  pendingMemberAction
+                    ? "cursor-not-allowed bg-gray-500 shimmer"
+                    : "bg-lime-400 hover:bg-lime-300"
+                } disabled:opacity-50`}
               >
                 <UserPlus size={16} /> เพิ่ม
               </button>
@@ -161,6 +166,7 @@ export default function MemberModal({
                   swipedMember={swipedMember}
                   setSwipedMember={setSwipedMember}
                   isEditing={editingMember === member}
+                  isPending={pendingMemberAction === member}
                   onEdit={() =>
                     setEditingMember(editingMember === member ? null : member)
                   }

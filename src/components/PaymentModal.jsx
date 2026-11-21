@@ -13,6 +13,7 @@ export default function PaymentModal({
   onUpdateDetails,
   onClose,
   onConfirm,
+  isSubmitting,
 }) {
   const details = memberDetails[to] || {};
   // const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
@@ -32,6 +33,7 @@ export default function PaymentModal({
   };
 
   const handleConfirmPay = async () => {
+    if (isSubmitting) return;
     const result = await Swal.fire({
       ...SWAL_THEME,
       title: `ยืนยันการโอนเงิน`,
@@ -195,9 +197,14 @@ export default function PaymentModal({
             </button>
             <button
               onClick={handleConfirmPay}
-              className="flex-2 flex items-center justify-center gap-1 rounded-lg bg-lime-400 py-3 text-sm font-bold text-gray-950 hover:bg-lime-300 transition"
+              disabled={isSubmitting}
+              className={`flex-2 flex items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
+                isSubmitting
+                  ? "cursor-not-allowed bg-gray-500 shimmer"
+                  : "bg-lime-400 hover:bg-lime-300"
+              }`}
             >
-              <CheckCircle size={16} /> ยืนยันโอนสำเร็จ
+              <CheckCircle size={16} /> {isSubmitting ? "กำลังบันทึก..." : "ยืนยันโอนสำเร็จ"}
             </button>
           </div>
         </div>
