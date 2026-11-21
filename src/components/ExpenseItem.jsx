@@ -1,6 +1,7 @@
 import { Edit2, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { formatMoney } from "../utils/trip";
+import useSwipeDrag from "../hooks/useSwipeDrag";
 
 export default function ExpenseItem({
   expense,
@@ -13,18 +14,21 @@ export default function ExpenseItem({
   isLast,
   isHighlighted, //  รับ State การ Highlight
 }) {
-  const [drag, setDrag] = useState({
-    active: false,
-    startX: 0,
-    startY: 0,
-    offset: 0,
-    scrolling: false,
-  });
   const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
-
-  const isMouse = useRef(false);
-  const suppressClick = useRef(false);
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
+  const isOpen = swipedId === expense.id;
+  const {
+    drag,
+    currentOffset,
+    isSwiped,
+    consumeSuppressedClick,
+    touchHandlers,
+    mouseHandlers,
+  } = useSwipeDrag({
+    id: expense.id,
+    isOpen,
+    setOpen: setSwipedId,
+  });
 
   //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
   useEffect(() => {
@@ -45,49 +49,6 @@ export default function ExpenseItem({
       ? Number(expense.odometer_end) - Number(expense.odometer_start)
       : 0;
 
-  const isOpen = swipedId === expense.id;
-  let currentOffset = isOpen ? -70 : 0;
-  if (drag.active) {
-    currentOffset = (isOpen ? -70 : 0) + drag.offset;
-    if (currentOffset > 0) currentOffset = 0;
-    if (currentOffset < -90) currentOffset = -90;
-  }
-  const isSwiped = currentOffset < -5;
-
-  const startDrag = (clientX, clientY) => {
-    setDrag({
-      active: true,
-      startX: clientX,
-      startY: clientY,
-      offset: 0,
-      scrolling: false,
-    });
-    if (swipedId !== expense.id) setSwipedId(null);
-  };
-  const moveDrag = (clientX, clientY) => {
-    if (!drag.active) return;
-    const diffX = clientX - drag.startX,
-      diffY = Math.abs(clientY - drag.startY);
-    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15)
-      setDrag((prev) => ({ ...prev, scrolling: true }));
-    if (drag.scrolling) return;
-    setDrag((prev) => ({ ...prev, offset: diffX }));
-  };
-  const endDrag = () => {
-    if (!drag.active) return;
-    suppressClick.current = Math.abs(drag.offset) > 5;
-    if (!drag.scrolling) {
-      if (currentOffset < -35) setSwipedId(expense.id);
-      else setSwipedId(null);
-    }
-    setDrag({
-      active: false,
-      startX: 0,
-      startY: 0,
-      offset: 0,
-      scrolling: false,
-    });
-  };
 
   return (
     <div
@@ -126,35 +87,10 @@ export default function ExpenseItem({
           borderTopRightRadius: isSwiped ? "24px" : "0px",
           borderBottomRightRadius: isSwiped ? "24px" : "0px",
         }}
-        onTouchStart={(e) =>
-          startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
-        }
-        onTouchMove={(e) =>
-          moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)
-        }
-        onTouchEnd={endDrag}
-        onMouseDown={(e) => {
-          isMouse.current = true;
-          startDrag(e.clientX, e.clientY);
-        }}
-        onMouseMove={(e) => {
-          if (isMouse.current) moveDrag(e.clientX, e.clientY);
-        }}
-        onMouseUp={() => {
-          if (isMouse.current) {
-            isMouse.current = false;
-            endDrag();
-          }
-        }}
-        onMouseLeave={() => {
-          if (isMouse.current) {
-            isMouse.current = false;
-            endDrag();
-          }
-        }}
+        {...touchHandlers}
+        {...mouseHandlers}
         onClick={(e) => {
-          if (suppressClick.current) {
-            suppressClick.current = false;
+          if (consumeSuppressedClick()) {
             e.stopPropagation();
             return;
           }

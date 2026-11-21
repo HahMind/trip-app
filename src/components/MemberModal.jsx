@@ -2,6 +2,7 @@ import { Plus, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BANKS } from "../data/constants";
 import MemberItem from "./MemberItem";
+import ModalShell from "./ModalShell";
 
 export default function MemberModal({
   members,
@@ -42,19 +43,11 @@ export default function MemberModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
-      style={{ touchAction: "pan-x pan-y" }}
-      onClick={onClose}
+    <ModalShell
+      backdropClassName="bg-gray-950/70"
+      panelClassName="max-h-[85vh] max-w-md"
+      onClose={onClose}
     >
-      <div
-        className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
-        style={{ touchAction: "pan-x pan-y" }}
-        onClick={(e) => {
-          e.stopPropagation();
-          setSwipedMember(null);
-        }}
-      >
         <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
           <h2 className="flex items-center gap-2 font-bold">
             <Users size={20} /> จัดการสมาชิกทริป
@@ -176,7 +169,6 @@ export default function MemberModal({
             })}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

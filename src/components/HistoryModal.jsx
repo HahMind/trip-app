@@ -1,6 +1,7 @@
 import { History, RotateCcw, X } from "lucide-react";
 import { useEffect } from "react";
 import { formatMoney } from "../utils/trip";
+import ModalShell from "./ModalShell";
 
 export default function HistoryModal({ expenses, onClose, onUndo }) {
   useEffect(() => {
@@ -12,16 +13,11 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
   }, [onClose]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-sm transition-all"
-      style={{ touchAction: "pan-x pan-y" }}
-      onClick={onClose}
+    <ModalShell
+      backdropClassName="bg-gray-950/60"
+      panelClassName="max-h-[80vh] max-w-md"
+      onClose={onClose}
     >
-      <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
-        style={{ touchAction: "pan-x pan-y" }}
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
           <h2 className="flex items-center gap-2 font-bold">
             <History size={20} /> ประวัติการเคลียร์ยอด
@@ -66,7 +62,6 @@ export default function HistoryModal({ expenses, onClose, onUndo }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

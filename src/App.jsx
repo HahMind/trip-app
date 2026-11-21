@@ -1,13 +1,8 @@
 import {
-  ArrowRight,
-  CheckCircle,
   Edit2,
-  History,
   Receipt,
-  Users,
   WifiOff,
   Loader2,
-  Palette,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -15,7 +10,6 @@ import Swal from "sweetalert2";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
 import {
   formatForDB,
-  formatMoney,
   getStoredMemberDetails,
   getStoredMembers,
   getTodayISO,
@@ -27,12 +21,16 @@ import MemberModal from "./components/MemberModal";
 import PaymentModal from "./components/PaymentModal";
 import SplitModal from "./components/SplitModal";
 import TripHeader from "./components/TripHeader";
+import ThemeMenu from "./components/ThemeMenu";
+import SettlementSection from "./components/SettlementSection";
+import usePinchGuard from "./hooks/usePinchGuard";
+import useSettlements from "./hooks/useSettlements";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.2.2-pinchCanceled_ThemeMenu";
+const version_number = "2.3.0";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -51,26 +49,18 @@ export default function App() {
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState({});
   const [showHistory, setShowHistory] = useState(false);
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("tripTheme") || "dark",
-  );
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [activePayment, setActivePayment] = useState(null);
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
   const [editId, setEditId] = useState(null);
   const [swipedId, setSwipedId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
+  usePinchGuard();
 
   const [date, setDate] = useState(getTodayISO());
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("tripTheme", theme);
-  }, [theme]);
 
   const [odometerStart, setOdometerStart] = useState(
     () => localStorage.getItem("lastOdometerEnd") || "",
@@ -136,25 +126,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const preventPinch = (event) => {
-      if (event.touches && event.touches.length > 1) {
-        event.preventDefault();
-      }
-    };
-    const preventGesture = (event) => event.preventDefault();
-
-    document.addEventListener("touchmove", preventPinch, { passive: false });
-    document.addEventListener("gesturestart", preventGesture, { passive: false });
-    document.addEventListener("gesturechange", preventGesture, { passive: false });
-
-    return () => {
-      document.removeEventListener("touchmove", preventPinch);
-      document.removeEventListener("gesturestart", preventGesture);
-      document.removeEventListener("gesturechange", preventGesture);
-    };
-  }, []);
-
-  useEffect(() => {
     // 1. เช็กสถานะอินเทอร์เน็ตตั้งต้นของเครื่องทันทีที่เปิดแอป
     setIsOffline(!navigator.onLine);
 
@@ -210,7 +181,6 @@ export default function App() {
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
-    if (themeMenuOpen) setThemeMenuOpen(false);
   };
 
   // บันทึกตรงเข้า Database
@@ -571,65 +541,7 @@ export default function App() {
     [regularExpenses],
   );
 
-  const settlements = useMemo(() => {
-    const balances = MEMBERS.map((member) => ({ member, balance: 0 }));
-
-    regularExpenses.forEach((expense) => {
-      const payer = balances.find((b) => b.member === expense.paid_by);
-      if (payer) payer.balance += Number(expense.amount);
-
-      let splitMembers =
-        Array.isArray(expense.split_between) && expense.split_between.length > 0
-          ? expense.split_between
-          : [expense.paid_by];
-      const validSplit = splitMembers.filter((m) => MEMBERS.includes(m));
-      const finalSplitters =
-        validSplit.length > 0
-          ? validSplit
-          : MEMBERS.includes(expense.paid_by)
-            ? [expense.paid_by]
-            : [MEMBERS[0]];
-
-      const costPerPerson = Number(expense.amount) / finalSplitters.length;
-      finalSplitters.forEach((m) => {
-        const debtor = balances.find((b) => b.member === m);
-        if (debtor) debtor.balance -= costPerPerson;
-      });
-    });
-
-    historyExpenses.forEach((expense) => {
-      const payer = balances.find((b) => b.member === expense.paid_by);
-      if (payer) payer.balance += Number(expense.amount);
-      MEMBERS.forEach((m) => {
-        if (expense.item_name.includes(`-> ${m}`)) {
-          const receiver = balances.find((b) => b.member === m);
-          if (receiver) receiver.balance -= Number(expense.amount);
-        }
-      });
-    });
-
-    const debtors = balances
-      .filter((b) => b.balance < -0.01)
-      .map((b) => ({ ...b }));
-    const creditors = balances
-      .filter((b) => b.balance > 0.01)
-      .map((b) => ({ ...b }));
-    const transfers = [];
-    let dIdx = 0,
-      cIdx = 0;
-    while (dIdx < debtors.length && cIdx < creditors.length) {
-      const d = debtors[dIdx],
-        c = creditors[cIdx];
-      const amt = Math.min(Math.abs(d.balance), c.balance);
-      if (amt > 0.01)
-        transfers.push({ from: d.member, to: c.member, amount: amt });
-      d.balance += amt;
-      c.balance -= amt;
-      if (Math.abs(d.balance) < 0.01) dIdx++;
-      if (c.balance < 0.01) cIdx++;
-    }
-    return { balances, transfers };
-  }, [MEMBERS, regularExpenses, historyExpenses]);
+  const settlements = useSettlements(expenses, MEMBERS);
 
   // หน้าจอตอนออฟไลน์ (บังมิด อ่านได้อย่างเดียวไม่ได้)
   if (isOffline) {
@@ -662,7 +574,6 @@ export default function App() {
   return (
     <div
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
-      data-theme={theme}
       onClick={handleAppClick}
     >
       <style>{`
@@ -852,100 +763,14 @@ export default function App() {
           />
         </div>
 
-        <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-bold text-lime-400">
-              <Users size={20} /> สรุปเคลียร์เงิน
-            </h2>
-            <button
-              type="button"
-              onClick={() => setShowHistory(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/15 text-amber-400 transition hover:bg-amber-500 hover:text-gray-950"
-              title="ประวัติการชำระ"
-              aria-label="ประวัติการชำระ"
-            >
-              <History size={18} />
-            </button>
-          </div>
-          <div className="space-y-2">
-            {settlements.transfers.length === 0 ? (
-              <p className="py-2 text-center text-sm text-gray-400">
-                ทุกคนเคลียร์เงินครบแล้ว
-              </p>
-            ) : (
-              settlements.transfers.map((t) => (
-                <div
-                  key={`${t.from}-${t.to}`}
-                  className="rounded-lg border border-lime-900 bg-gray-800 p-3"
-                >
-                  <div className="mb-2 flex justify-between p-2">
-                    <div className="flex gap-2 font-medium">
-                      <span className="text-gray-100">{t.from}</span>
-                      <ArrowRight size={16} className="text-gray-400" />
-                      <span className="text-gray-100">{t.to}</span>
-                    </div>
-                    <div className="font-bold text-lime-400">
-                      ฿{formatMoney(t.amount)}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActivePayment(t)}
-                    className="m-auto flex w-10/12 items-center justify-center gap-1 rounded bg-lime-500 py-2 text-xs text-gray-950 shadow-sm transition hover:bg-lime-300"
-                  >
-                    <CheckCircle size={14} /> เคลียร์ยอดนี้
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <SettlementSection
+          settlements={settlements}
+          onOpenPayment={setActivePayment}
+          onOpenHistory={() => setShowHistory(true)}
+        />
       </main>
 
-      <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 h-14 w-14">
-        {[
-          { id: "dark", color: "#111827", transform: "translate(-8px, -132px)" },
-          { id: "light", color: "#bfe8cf", transform: "translate(-74px, -112px)" },
-          { id: "purple", color: "#9b87c9", transform: "translate(-126px, -70px)" },
-        ].map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => {
-              setTheme(option.id);
-              setThemeMenuOpen(false);
-            }}
-            className="absolute bottom-0 right-0 h-11 w-11 rounded-full border-2 border-white/80 shadow-lg transition-all duration-300"
-            style={{
-              backgroundColor: option.color,
-              transform: themeMenuOpen ? option.transform : "translate(0, 0) scale(0)",
-              opacity: themeMenuOpen ? 1 : 0,
-              pointerEvents: themeMenuOpen ? "auto" : "none",
-            }}
-            title={
-              option.id === "dark"
-                ? "ธีมเขียวดำ"
-                : option.id === "light"
-                  ? "ธีมเขียวอ่อน-ขาว"
-                  : "ธีมเทา-ม่วง"
-            }
-            aria-label={
-              option.id === "dark"
-                ? "ใช้ธีมเขียวดำ"
-                : option.id === "light"
-                  ? "ใช้ธีมเขียวอ่อน-ขาว"
-                  : "ใช้ธีมเทา-ม่วง"
-            }
-          />
-        ))}
-        <button
-          type="button"
-          onClick={() => setThemeMenuOpen((open) => !open)}
-          className="absolute bottom-0 right-0 flex h-14 w-14 items-center justify-center rounded-full border border-lime-400/40 bg-lime-400 text-gray-950 shadow-xl transition-all duration-200 hover:scale-105"
-          aria-label="เปลี่ยนธีม"
-        >
-          <Palette size={24} />
-        </button>
-      </div>
+      <ThemeMenu />
 
       {showMemberModal && (
         <MemberModal

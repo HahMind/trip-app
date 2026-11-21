@@ -1,6 +1,7 @@
 import { Edit2, Save, Trash2 } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useState } from "react";
 import { BANKS } from "../data/constants";
+import useSwipeDrag from "../hooks/useSwipeDrag";
 
 export default function MemberItem({
   member,
@@ -20,89 +21,20 @@ export default function MemberItem({
     bankAcc: details?.bankAcc || "",
   });
 
-  const [drag, setDrag] = useState({
-    active: false,
-    startX: 0,
-    startY: 0,
-    offset: 0,
-    scrolling: false,
-  });
-  
-  const isMouse = useRef(false);
-  const suppressClick = useRef(false);
-
   const isOpen = swipedMember === member;
-  let currentOffset = isOpen ? -70 : 0;
-  if (drag.active) {
-    currentOffset = (isOpen ? -70 : 0) + drag.offset;
-    if (currentOffset > 0) currentOffset = 0;
-    if (currentOffset < -90) currentOffset = -90;
-  }
-  const isSwiped = currentOffset < -5;
-
-  const startDrag = (clientX, clientY) => {
-    if (isEditing) return;
-    setDrag({
-      active: true,
-      startX: clientX,
-      startY: clientY,
-      offset: 0,
-      scrolling: false,
-    });
-    if (swipedMember !== member) setSwipedMember(null);
-  };
-
-  const moveDrag = (clientX, clientY) => {
-    if (!drag.active) return;
-    const diffX = clientX - drag.startX;
-    const diffY = Math.abs(clientY - drag.startY);
-    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
-      setDrag((prev) => ({ ...prev, scrolling: true }));
-    }
-    if (drag.scrolling) return;
-    setDrag((prev) => ({ ...prev, offset: diffX }));
-  };
-
-  const endDrag = () => {
-    if (!drag.active) return;
-    isMouse.current = false;
-    suppressClick.current = Math.abs(drag.offset) > 5;
-    if (!drag.scrolling) {
-      const baseOffset = isOpen ? -70 : 0;
-      const finalOffset = baseOffset + drag.offset;
-      if (finalOffset < -35) {
-        setSwipedMember(member);
-      } else {
-        setSwipedMember(null);
-      }
-    }
-    setDrag({
-      active: false,
-      startX: 0,
-      startY: 0,
-      offset: 0,
-      scrolling: false,
-    });
-  };
-
-  useEffect(() => {
-    const handleGlobalMouseMove = (e) => {
-      if (isMouse.current) moveDrag(e.clientX, e.clientY);
-    };
-    const handleGlobalMouseUp = () => {
-      if (isMouse.current) {
-        isMouse.current = false;
-        endDrag();
-      }
-    };
-
-    window.addEventListener("mousemove", handleGlobalMouseMove);
-    window.addEventListener("mouseup", handleGlobalMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleGlobalMouseMove);
-      window.removeEventListener("mouseup", handleGlobalMouseUp);
-    };
-  }, [drag.active, drag.startX, drag.startY, isOpen, member]);
+  const {
+    drag,
+    currentOffset,
+    isSwiped,
+    consumeSuppressedClick,
+    touchHandlers,
+    mouseHandlers,
+  } = useSwipeDrag({
+    id: member,
+    isOpen,
+    setOpen: setSwipedMember,
+    canDrag: !isEditing,
+  });
 
   return (
     <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
@@ -154,31 +86,10 @@ export default function MemberItem({
           borderTopRightRadius: isSwiped ? "24px" : "0px",
           borderBottomRightRadius: isSwiped ? "24px" : "0px",
         }}
-        onTouchStart={(e) => startDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
-        onTouchMove={(e) => moveDrag(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
-        onTouchEnd={endDrag}
-        onMouseDown={(e) => {
-          isMouse.current = true;
-          startDrag(e.clientX, e.clientY);
-        }}
-        onMouseMove={(e) => {
-          if (isMouse.current) moveDrag(e.clientX, e.clientY);
-        }}
-        onMouseUp={() => {
-          if (isMouse.current) {
-            isMouse.current = false;
-            endDrag();
-          }
-        }}
-        onMouseLeave={() => {
-          if (isMouse.current) {
-            isMouse.current = false;
-            endDrag();
-          }
-        }}
+        {...touchHandlers}
+        {...mouseHandlers}
         onClick={(e) => {
-          if (suppressClick.current) {
-            suppressClick.current = false;
+          if (consumeSuppressedClick()) {
             e.stopPropagation();
             return;
           }

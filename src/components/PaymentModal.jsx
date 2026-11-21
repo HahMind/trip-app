@@ -3,6 +3,7 @@ import { useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
 import { formatMoney, openBankApp } from "../utils/trip";
 import Swal from "sweetalert2";
+import ModalShell from "./ModalShell";
 
 export default function PaymentModal({
   from,
@@ -45,16 +46,11 @@ export default function PaymentModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 p-4 backdrop-blur-sm"
-      style={{ touchAction: "pan-x pan-y" }}
-      onClick={onClose}
+    <ModalShell
+      backdropClassName="bg-gray-950/80"
+      panelClassName="max-w-sm"
+      onClose={onClose}
     >
-      <div
-        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
-        style={{ touchAction: "pan-x pan-y" }}
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="bg-gray-800 p-4 text-center">
           <p className="text-sm text-gray-400">ชำระเงินให้</p>
           <h2 className="text-xl font-bold text-lime-400">{to}</h2>
@@ -217,7 +213,6 @@ export default function PaymentModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

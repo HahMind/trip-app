@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatMoney } from "../utils/trip";
+import ModalShell from "./ModalShell";
 
 export default function SplitModal({ expense, members, onClose, onSave }) {
   const [selectedSplit, setSelectedSplit] = useState(() => {
@@ -31,16 +32,11 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
     isAllSelected ? setSelectedSplit([]) : setSelectedSplit([...members]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/70 p-4 backdrop-blur-sm transition-all"
-      style={{ touchAction: "pan-x pan-y" }}
-      onClick={onClose}
+    <ModalShell
+      backdropClassName="bg-gray-950/70"
+      panelClassName="max-w-sm"
+      onClose={onClose}
     >
-      <div
-        className="flex w-full max-w-sm flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl"
-        style={{ touchAction: "pan-x pan-y" }}
-        onClick={(e) => e.stopPropagation()}
-      >
         <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
           <div>
             <h3 className="font-bold text-base text-gray-100">
@@ -109,7 +105,6 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
