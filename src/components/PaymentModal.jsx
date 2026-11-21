@@ -37,7 +37,7 @@ export default function PaymentModal({
     const result = await Swal.fire({
       ...SWAL_THEME,
       title: `ยืนยันการโอนเงิน`,
-      text: `คุณโอนเงิน ฿${formatMoney(amount)} ให้ ${to} เรียบร้อยแล้วใช่หรือไม่?`,
+      html: `คุณโอนเงิน <strong class="text-2xl text-lime-400">฿${formatMoney(amount)}</strong> ให้ ${to} เรียบร้อยแล้วใช่หรือไม่?`,
       showCancelButton: true,
       confirmButtonText: "โอนเรียบร้อย",
       cancelButtonText: "ยกเลิก",
@@ -204,7 +204,7 @@ export default function PaymentModal({
                   : "bg-lime-400 hover:bg-lime-300"
               }`}
             >
-              <CheckCircle size={16} /> {isSubmitting ? "กำลังบันทึก..." : "ยืนยันโอนสำเร็จ"}
+              <CheckCircle size={16} /> {isSubmitting ? "กำลังบันทึก..." : "ยืนยันการโอน"}
             </button>
           </div>
         </div>
