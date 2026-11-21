@@ -219,7 +219,7 @@ export default function App() {
         ...SWAL_THEME,
         icon: "success",
         title: "เพิ่ม " + name + " สำเร็จ",
-        timer: 400,
+        timer: 1000,
         showConfirmButton: false,
       });
     }
@@ -234,7 +234,7 @@ export default function App() {
         ...SWAL_THEME,
         icon: "success",
         title: "บันทึกข้อมูลเรียบร้อย",
-        timer: 700,
+        timer: 1000,
         showConfirmButton: false,
       });
   };
@@ -294,7 +294,7 @@ export default function App() {
       ...SWAL_THEME,
       icon: "success",
       title: `ลบ ${name} แล้ว`,
-      timer: 800,
+      timer: 1000,
       showConfirmButton: false,
     });
   };

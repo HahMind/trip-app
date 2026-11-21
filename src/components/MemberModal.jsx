@@ -50,7 +50,7 @@ export default function MemberModal({
     >
         <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
           <h2 className="flex items-center gap-2 font-bold">
-            <Users size={20} /> จัดการสมาชิกทริป
+            <Users size={20} /> จัดการสมาชิก
           </h2>
           <button
             onClick={onClose}
@@ -67,7 +67,7 @@ export default function MemberModal({
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="พิมพ์ชื่อเพื่อน..."
+                placeholder="พิมพ์ชื่อ..."
                 className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
               />
               <button
