@@ -19,7 +19,9 @@ export default function TripHeader({
   }, [isSyncing, syncStatus]);
 
   return (
-    <header className="sticky top-0 z-30 bg-gray-900 p-4 text-gray-100 shadow-md">
+    <header
+      className="sticky top-0 z-30 bg-gray-900 px-4 pb-4 text-gray-100 shadow-md pt-[calc(env(safe-area-inset-top,0px)+1rem)]"
+    >
       <div className="relative mx-auto max-w-md text-center">
         <button
           onClick={onOpenMemberModal}

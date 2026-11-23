@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.0.0-PWA branch";
+const version_number = "3.0.1";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -682,19 +682,19 @@ export default function App() {
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
-      <Toaster position="top" theme="dark" offset={12} haptics />
+      <Toaster position="top" theme="dark" offset={4} haptics />
       <style>{`
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
-      <div className="fixed top-2 right-3 z-50 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">
+      <div className="fixed right-3 bottom-3 z-20 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">
         {version_number}
       </div>
 
       {isOffline && (
         <div
           role="status"
-          className="sticky top-0 z-40 flex items-center justify-center gap-2 border-b border-amber-500/40 bg-amber-500/95 px-3 py-2 text-center text-xs font-bold text-gray-950"
+          className="relative z-40 flex items-center justify-center gap-2 border-b border-amber-500/40 bg-amber-500/95 px-3 py-2 text-center text-xs font-bold text-gray-950"
         >
           <WifiOff size={14} />
           <span>ออฟไลน์อยู่ — ดูข้อมูลล่าสุดจากเครื่อง</span>
