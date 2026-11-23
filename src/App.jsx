@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.0.1";
+const version_number = "3.0.1-PWA";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
