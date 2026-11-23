@@ -1,5 +1,5 @@
-import Swal from "sweetalert2";
-import { DEFAULT_MEMBERS, SWAL_THEME } from "../data/constants";
+import { dynaura } from "dynaura";
+import { DEFAULT_MEMBERS } from "../data/constants";
 
 export const getTodayISO = () => new Date().toLocaleDateString("en-CA");
 
@@ -62,19 +62,20 @@ export const openBankApp = async (textToCopy, scheme, title) => {
   }
 
   if (!copied) {
-    Swal.fire({ ...SWAL_THEME, icon: "error", title: "คัดลอกไม่สำเร็จ" });
+    dynaura.error({
+      title: "คัดลอกไม่สำเร็จ",
+      description: "กรุณาลองคัดลอกเลขบัญชีอีกครั้ง",
+      duration: 4000,
+    });
     return;
   }
 
-  Swal.fire({
-    ...SWAL_THEME,
-    icon: "success",
+  dynaura.success({
     title,
-    text: scheme
-      ? "ก๊อปเลขบัญชีแล้ว"
+    description: scheme
+      ? "ก๊อปเลขบัญชีแล้ว กำลังเปิดแอปธนาคาร"
       : "คัดลอกเลขบัญชีเรียบร้อยแล้ว",
-    timer: 1000,
-    showConfirmButton: false,
+    duration: 3000,
   });
 
   if (scheme) window.location.href = scheme;

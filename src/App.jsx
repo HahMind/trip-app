@@ -6,9 +6,11 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import Swal from "sweetalert2";
+import { dynaura, Toaster } from "dynaura";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
 import {
   formatForDB,
+  formatMoney,
   getStoredMemberDetails,
   getStoredMembers,
   getTodayISO,
@@ -29,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "2.3.2";
+const version_number = "2.4.0";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -195,19 +197,25 @@ export default function App() {
     if (pendingMemberAction) return;
     // 1. ตรวจสอบสถานะการเชื่อมต่ออินเทอร์เน็ต
     if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      return dynaura.warning({
         title: "ออฟไลน์",
-        text: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
+        description: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
       });
 
     if (!MEMBERS.includes(name)) {
       setPendingMemberAction(name);
+      const notificationId = dynaura.loading({
+        id: `add-member-${Date.now()}`,
+        title: `กำลังเพิ่ม ${name}`,
+        description: "กำลังบันทึกสมาชิกลงฐานข้อมูล",
+        progress: 0.15,
+      });
       // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
       try {
         const { error } = await supabase.from("trip_members").insert([{ name }]);
         if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
 
         setPaidBy(name);
         localStorage.setItem("defaultPaidBy", name);
@@ -215,20 +223,20 @@ export default function App() {
         await refreshMembers();
 
         if (details) handleUpdateMemberDetails(name, details, false);
-
-        Swal.fire({
-          ...SWAL_THEME,
-          icon: "success",
+        dynaura.update(notificationId, {
+          type: "success",
           title: "เพิ่ม " + name + " สำเร็จ",
-          timer: 1000,
-          showConfirmButton: false,
+          description: undefined,
+          progress: undefined,
+          duration: 3000,
         });
       } catch (error) {
-        Swal.fire({
-          ...SWAL_THEME,
-          icon: "error",
+        dynaura.update(notificationId, {
+          type: "error",
           title: "เพิ่มไม่สำเร็จ",
-          text: error.message,
+          description: error.message,
+          progress: undefined,
+          duration: 5000,
         });
       } finally {
         setPendingMemberAction(null);
@@ -241,37 +249,32 @@ export default function App() {
     setMemberDetails(updated);
     localStorage.setItem("memberDetails", JSON.stringify(updated));
     if (showToast)
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
+      dynaura.success({
         title: "บันทึกข้อมูลเรียบร้อย",
-        timer: 1000,
-        showConfirmButton: false,
+        description: `ข้อมูลการชำระเงินของ ${name}`,
+        duration: 1000,
       });
   };
 
   const handleRemoveMember = async (name, hasDebt) => {
     if (pendingMemberAction) return;
     if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      return dynaura.warning({
         title: "ออฟไลน์",
-        text: "ไม่สามารถลบสมาชิกขณะออฟไลน์ได้",
+        description: "ไม่สามารถลบสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
       });
     if (MEMBERS.length <= 1)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      return dynaura.warning({
         title: "ลบไม่ได้",
-        text: "ต้องมีสมาชิกอย่างน้อย 1 คน",
+        description: "ต้องมีสมาชิกอย่างน้อย 1 คน",
+        duration: 4000,
       });
     if (hasDebt)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      return dynaura.error({
         title: "ลบไม่ได้",
-        text: `${name} มียอดค้างชำระอยู่`,
+        description: `${name} มียอดค้างชำระอยู่`,
+        duration: 4000,
       });
 
     const result = await Swal.fire({
@@ -289,26 +292,34 @@ export default function App() {
     });
     if (!result.isConfirmed) return;
     setPendingMemberAction(name);
+    const notificationId = dynaura.loading({
+      id: `remove-member-${name}-${Date.now()}`,
+      title: `กำลังลบ ${name}`,
+      description: "กำลังอัปเดตรายชื่อสมาชิก",
+      progress: 0.15,
+    });
     try {
       const { error } = await supabase
         .from("trip_members")
         .delete()
         .eq("name", name);
       if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
       await refreshMembers();
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
+      dynaura.update(notificationId, {
+        type: "success",
         title: `ลบ ${name} แล้ว`,
-        timer: 1000,
-        showConfirmButton: false,
+        description: undefined,
+        progress: undefined,
+        duration: 3000,
       });
     } catch (error) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      dynaura.update(notificationId, {
+        type: "error",
         title: "ลบไม่สำเร็จ",
-        text: error.message,
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
       });
     } finally {
       setPendingMemberAction(null);
@@ -334,8 +345,15 @@ export default function App() {
         title: "กรุณากรอกจำนวนเงิน",
       });
 
+    const wasEditing = Boolean(editId);
     expenseSubmitLock.current = true;
     setIsSubmittingExpense(true);
+    const notificationId = dynaura.loading({
+      id: `expense-${wasEditing ? "edit" : "add"}-${Date.now()}`,
+      title: wasEditing ? "กำลังแก้ไขรายการ" : "กำลังบันทึกรายการ",
+      description: item.trim() || category,
+      progress: 0.12,
+    });
 
     const payload = {
       expense_date: formatForDB(date),
@@ -352,7 +370,6 @@ export default function App() {
         category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
 
-    const wasEditing = Boolean(editId);
     try {
       if (wasEditing) {
         const { error } = await supabase
@@ -360,34 +377,39 @@ export default function App() {
           .update(payload)
           .eq("id", editId);
         if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
         setEditId(null);
         setHighlightedId(editId);
         setTimeout(() => setHighlightedId(null), 2000);
       } else {
         const { error } = await supabase.from("trip_expenses").insert([payload]);
         if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
       }
 
       await refreshExpenses();
+      dynaura.update(notificationId, { progress: 1 });
       setItem("");
       setAmount("");
       setCategory(CATEGORIES[0]);
       setOdometerStart("");
       setOdometerEnd("");
       localStorage.setItem("lastOdometerEnd", "");
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
+      dynaura.update(notificationId, {
+        type: "success",
         title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
-        timer: 1000,
-        showConfirmButton: false,
+        description: `${formatMoney(numericAmount)} บาท`,
+        progress: undefined,
+        duration: 4000,
+        confetti: true,
       });
     } catch (error) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      dynaura.update(notificationId, {
+        type: "error",
         title: wasEditing ? "แก้ไขไม่สำเร็จ" : "บันทึกไม่สำเร็จ",
-        text: error.message,
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
       });
     } finally {
       expenseSubmitLock.current = false;
@@ -398,29 +420,43 @@ export default function App() {
   const handleUpdateSplit = async (id, newSplit) => {
     if (pendingSplitId) return false;
     if (isOffline) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      dynaura.warning({
         title: "ออฟไลน์",
-        text: "ไม่สามารถแก้ไขการหารขณะออฟไลน์ได้",
+        description: "ไม่สามารถแก้ไขการหารขณะออฟไลน์ได้",
+        duration: 4000,
       });
       return false;
     }
     setPendingSplitId(id);
+    const notificationId = dynaura.loading({
+      id: `update-split-${id}-${Date.now()}`,
+      title: "กำลังอัปเดตการหาร",
+      description: "กำลังบันทึกผู้ร่วมรายการ",
+      progress: 0.15,
+    });
     try {
       const { error } = await supabase
         .from("trip_expenses")
         .update({ split_between: newSplit })
         .eq("id", id);
       if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
       await refreshExpenses();
+      dynaura.update(notificationId, {
+        type: "success",
+        title: "อัปเดตการหารสำเร็จ",
+        description: "ยอดแบ่งรายการได้รับการอัปเดต",
+        progress: undefined,
+        duration: 3000,
+      });
       return true;
     } catch (error) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      dynaura.update(notificationId, {
+        type: "error",
         title: "อัปเดตไม่สำเร็จ",
-        text: error.message,
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
       });
       return false;
     } finally {
@@ -441,11 +477,10 @@ export default function App() {
   const handleDelete = async (id) => {
     if (pendingDeleteId) return;
     if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      return dynaura.warning({
         title: "ออฟไลน์",
-        text: "ไม่สามารถลบรายการขณะออฟไลน์ได้",
+        description: "ไม่สามารถลบรายการขณะออฟไลน์ได้",
+        duration: 4000,
       });
     const r = await Swal.fire({
       ...SWAL_THEME,
@@ -460,26 +495,34 @@ export default function App() {
     });
     if (r.isConfirmed) {
       setPendingDeleteId(id);
+      const notificationId = dynaura.loading({
+        id: `delete-expense-${id}-${Date.now()}`,
+        title: "กำลังลบรายการ",
+        description: "กำลังอัปเดตรายจ่ายและยอดคงเหลือ",
+        progress: 0.15,
+      });
       try {
         const { error } = await supabase
           .from("trip_expenses")
           .delete()
           .eq("id", id);
         if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
         await refreshExpenses();
-        Swal.fire({
-          ...SWAL_THEME,
-          icon: "success",
+        dynaura.update(notificationId, {
+          type: "success",
           title: "ลบรายการแล้ว",
-          timer: 800,
-          showConfirmButton: false,
+          description: "รายจ่ายและยอดคงเหลือถูกอัปเดต",
+          progress: undefined,
+          duration: 3000,
         });
       } catch (error) {
-        Swal.fire({
-          ...SWAL_THEME,
-          icon: "error",
+        dynaura.update(notificationId, {
+          type: "error",
           title: "ลบไม่สำเร็จ",
-          text: error.message,
+          description: error.message,
+          progress: undefined,
+          duration: 5000,
         });
       } finally {
         setPendingDeleteId(null);
@@ -490,33 +533,40 @@ export default function App() {
   const handleUndoHistory = async (id) => {
     if (pendingHistoryId) return;
     if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
+      return dynaura.warning({
         title: "ออฟไลน์",
-        text: "ไม่สามารถทำรายการขณะออฟไลน์ได้",
+        description: "ไม่สามารถกู้คืนยอดขณะออฟไลน์ได้",
+        duration: 4000,
       });
     setPendingHistoryId(id);
+    const notificationId = dynaura.loading({
+      id: `undo-history-${id}-${Date.now()}`,
+      title: "กำลังกู้คืนยอด",
+      description: "กำลังลบประวัติการเคลียร์ยอด",
+      progress: 0.15,
+    });
     try {
       const { error } = await supabase
         .from("trip_expenses")
         .delete()
         .eq("id", id);
       if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
       await refreshExpenses();
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
+      dynaura.update(notificationId, {
+        type: "success",
         title: "กู้คืนยอดเรียบร้อย",
-        timer: 1000,
-        showConfirmButton: false,
+        description: "ยอดค้างชำระถูกคำนวณใหม่",
+        progress: undefined,
+        duration: 3000,
       });
     } catch (error) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      dynaura.update(notificationId, {
+        type: "error",
         title: "กู้คืนไม่สำเร็จ",
-        text: error.message,
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
       });
     } finally {
       setPendingHistoryId(null);
@@ -545,24 +595,33 @@ export default function App() {
 
     settlementSubmitLock.current = true;
     setPendingSettlement(`${from}-${to}`);
+    const notificationId = dynaura.loading({
+      id: `settle-${from}-${to}-${Date.now()}`,
+      title: "กำลังบันทึกประวัติการโอน",
+      description: `${from} → ${to}`,
+      progress: 0.15,
+    });
     try {
       const { error } = await supabase.from("trip_expenses").insert([newHistory]);
       if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
       setActivePayment(null);
       await refreshExpenses();
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "success",
+      dynaura.update(notificationId, {
+        type: "success",
         title: "บันทึกประวัติการโอนแล้ว",
-        timer: 1200,
-        showConfirmButton: false,
+        description: `฿${formatMoney(settleAmount)} จาก ${from} ถึง ${to}`,
+        progress: undefined,
+        duration: 4000,
+        confetti: true,
       });
     } catch (error) {
-      Swal.fire({
-        ...SWAL_THEME,
-        icon: "error",
+      dynaura.update(notificationId, {
+        type: "error",
         title: "บันทึกไม่สำเร็จ",
-        text: error.message,
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
       });
     } finally {
       settlementSubmitLock.current = false;
@@ -623,6 +682,7 @@ export default function App() {
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
+      <Toaster position="top" theme="dark" offset={12} haptics />
       <style>{`
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }

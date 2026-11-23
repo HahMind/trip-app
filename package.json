@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "dynaura": "^0.2.2",
     "lucide-react": "^1.68.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
