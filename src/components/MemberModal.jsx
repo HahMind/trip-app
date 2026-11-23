@@ -126,14 +126,15 @@ export default function MemberModal({
                   </button>
                 </div>
                 <input
-                  type="text"
+                  type="tel"
                   placeholder="เบอร์พร้อมเพย์..."
                   value={newPayForm.promptpay}
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   onChange={(e) =>
                     setNewPayForm({
                       ...newPayForm,
-                      promptpay: normalizePromptPay(e.target.value),
+                      promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
                     })
                   }
                   className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
@@ -154,11 +155,16 @@ export default function MemberModal({
                     ))}
                   </select>
                   <input
-                    type="text"
+                    type="tel"
                     placeholder="เลขบัญชี..."
                     value={newPayForm.bankAcc}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     onChange={(e) =>
-                      setNewPayForm({ ...newPayForm, bankAcc: e.target.value })
+                      setNewPayForm({
+                        ...newPayForm,
+                        bankAcc: e.target.value.replace(/\D/g, ""),
+                      })
                     }
                     className="flex rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none w-full"
                   />

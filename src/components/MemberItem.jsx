@@ -126,13 +126,14 @@ export default function MemberItem({
               เบอร์พร้อมเพย์ (เว้นว่างได้)
             </label>
             <input
-              type="text"
+              type="tel"
               value={form.promptpay}
               inputMode="numeric"
+              pattern="[0-9]*"
               onChange={(e) =>
                 setForm({
                   ...form,
-                  promptpay: normalizePromptPay(e.target.value),
+                  promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
                 })
               }
               className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
@@ -161,9 +162,16 @@ export default function MemberItem({
                 เลขบัญชี
               </label>
               <input
-                type="text"
+                type="tel"
                 value={form.bankAcc}
-                onChange={(e) => setForm({ ...form, bankAcc: e.target.value })}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    bankAcc: e.target.value.replace(/\D/g, ""),
+                  })
+                }
                 className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
                 placeholder="เลขบัญชี..."
               />
