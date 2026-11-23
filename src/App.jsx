@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.0.1-PWA";
+const version_number = "3.0.11";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -682,10 +682,31 @@ export default function App() {
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
-      <Toaster position="top" theme="dark" offset={4} haptics />
+      <Toaster position="top" theme="dark" offset={0} haptics />
       <style>{`
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
+
+        /*
+         * DYNAURA_TOASTER_TOP:
+         * แสดงใต้ safe area แล้วปรับระยะเพิ่มเติมจากขอบบนได้ที่เลข px
+         * เพิ่มเลข px เพื่อขยับลง; ลดเลขเพื่อขยับขึ้น
+         */
+        .dynaura-root[data-y="top"] {
+          top: calc(env(safe-area-inset-top, 0px) + 1px);
+        }
+
+        /*
+         * DYNAURA_TOASTER_SIZE:
+         * ปรับความกว้างสูงสุดได้ที่ min(380px, 92vw)
+         * เพิ่ม 380px เป็นขนาดกว้างขึ้น ลดลงเพื่อเล็กลง
+         */
+        .dynaura-inner {
+          max-width: min(380px, 92vw);
+        }
+        .dynaura-island[data-expanded="true"] .dynaura-inner {
+          min-width: min(320px, 92vw);
+        }
       `}</style>
       <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md  px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
         {version_number}
