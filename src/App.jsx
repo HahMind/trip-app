@@ -31,7 +31,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.0.11";
+const version_number = "3.0.2";
 
 export default function App() {
   const [MEMBERS, setMembers] = useState(getStoredMembers);
@@ -693,7 +693,7 @@ export default function App() {
          * เพิ่มเลข px เพื่อขยับลง; ลดเลขเพื่อขยับขึ้น
          */
         .dynaura-root[data-y="top"] {
-          top: calc(env(safe-area-inset-top, 0px) + 1px);
+          top: calc(env(safe-area-inset-top, 0px) + 4px);
         }
 
         /*
