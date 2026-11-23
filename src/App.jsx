@@ -687,7 +687,7 @@ export default function App() {
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
       `}</style>
-      <div className="fixed right-3 bottom-3 z-20 pointer-events-none select-none text-[10px] text-gray-700 opacity-50">
+      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md  px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
         {version_number}
       </div>
 
