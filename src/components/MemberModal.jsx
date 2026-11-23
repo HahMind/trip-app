@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { BANKS } from "../data/constants";
 import MemberItem from "./MemberItem";
 import ModalShell from "./ModalShell";
+import { dynaura } from "dynaura";
+import { normalizePromptPay, validatePromptPay } from "../utils/trip";
 
 export default function MemberModal({
   members,
@@ -36,7 +38,23 @@ export default function MemberModal({
     e.preventDefault();
     const trimmed = newName.trim();
     if (trimmed) {
-      onAdd(trimmed, showNewPayForm ? newPayForm : null);
+      let paymentDetails = null;
+      if (showNewPayForm) {
+        const validation = validatePromptPay(newPayForm.promptpay);
+        if (!validation.valid) {
+          dynaura.warning({
+            title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+            description: validation.message,
+            duration: 4000,
+          });
+          return;
+        }
+        paymentDetails = {
+          ...newPayForm,
+          promptpay: validation.normalized,
+        };
+      }
+      onAdd(trimmed, paymentDetails);
       setNewName("");
       setShowNewPayForm(false);
       setNewPayForm({ promptpay: "", bankId: "kbank", bankAcc: "" });

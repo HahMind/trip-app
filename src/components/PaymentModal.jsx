@@ -1,8 +1,14 @@
 import { CheckCircle, Copy } from "lucide-react";
 import { useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
-import { formatMoney, openBankApp } from "../utils/trip";
+import {
+  formatMoney,
+  normalizePromptPay,
+  openBankApp,
+  validatePromptPay,
+} from "../utils/trip";
 import Swal from "sweetalert2";
+import { dynaura } from "dynaura";
 import ModalShell from "./ModalShell";
 
 export default function PaymentModal({
@@ -29,7 +35,28 @@ export default function PaymentModal({
   );
 
   const handleSaveDetails = () => {
-    onUpdateDetails(to, form);
+    if (tab === "qr") {
+      const validation = validatePromptPay(form.promptpay);
+      if (!validation.valid) {
+        dynaura.warning({
+          title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+          description: validation.message,
+          duration: 4000,
+        });
+        return;
+      }
+      if (!validation.normalized) {
+        dynaura.warning({
+          title: "กรุณากรอกเลขพร้อมเพย์",
+          description: "เว้นวรรคหรือใส่เครื่องหมาย - จะถูกกรองออกอัตโนมัติ",
+          duration: 4000,
+        });
+        return;
+      }
+      onUpdateDetails(to, { ...form, promptpay: validation.normalized });
+    } else {
+      onUpdateDetails(to, form);
+    }
   };
 
   const handleConfirmPay = async () => {
@@ -103,8 +130,12 @@ export default function PaymentModal({
                   <input
                     type="text"
                     value={form.promptpay}
+                    inputMode="numeric"
                     onChange={(e) =>
-                      setForm({ ...form, promptpay: e.target.value })
+                      setForm({
+                        ...form,
+                        promptpay: normalizePromptPay(e.target.value),
+                      })
                     }
                     placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
                     className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"

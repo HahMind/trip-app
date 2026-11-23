@@ -10,6 +10,28 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("tripTheme", theme);
+
+    const themeColors = {
+      dark: "#111827",
+      light: "#f8fcf9",
+      purple: "#faf9fc",
+    };
+    const themeColor = themeColors[theme] || themeColors.dark;
+
+    let themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeMeta) {
+      themeMeta = document.createElement("meta");
+      themeMeta.name = "theme-color";
+      document.head.appendChild(themeMeta);
+    }
+    themeMeta.content = themeColor;
+
+    const statusBarMeta = document.querySelector(
+      'meta[name="apple-mobile-web-app-status-bar-style"]',
+    );
+    if (statusBarMeta) {
+      statusBarMeta.content = theme === "dark" ? "black" : "default";
+    }
   }, [theme]);
 
   return (

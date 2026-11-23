@@ -26,14 +26,16 @@ import ThemeMenu from "./components/ThemeMenu";
 import SettlementSection from "./components/SettlementSection";
 import usePinchGuard from "./hooks/usePinchGuard";
 import useSettlements from "./hooks/useSettlements";
+import { useTheme } from "./context/ThemeContext";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.0.2";
+const version_number = "3.0.3";
 
 export default function App() {
+  const { theme } = useTheme();
   const [MEMBERS, setMembers] = useState(getStoredMembers);
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
 
@@ -682,7 +684,11 @@ export default function App() {
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
-      <Toaster position="top" theme="dark" offset={0} haptics />
+      <Toaster
+        position="top"
+        offset={0}
+        haptics
+      />
       <style>{`
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
@@ -693,7 +699,7 @@ export default function App() {
          * เพิ่มเลข px เพื่อขยับลง; ลดเลขเพื่อขยับขึ้น
          */
         .dynaura-root[data-y="top"] {
-          top: calc(env(safe-area-inset-top, 0px) + 4px);
+          top: max(11px, calc(env(safe-area-inset-top, 0px) - 48px));
         }
 
         /*
@@ -702,10 +708,10 @@ export default function App() {
          * เพิ่ม 380px เป็นขนาดกว้างขึ้น ลดลงเพื่อเล็กลง
          */
         .dynaura-inner {
-          max-width: min(380px, 92vw);
+        max-width: min(350px, 88vw);
         }
         .dynaura-island[data-expanded="true"] .dynaura-inner {
-          min-width: min(320px, 92vw);
+          min-width: min(320px, 88vw);
         }
       `}</style>
       <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md  px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">

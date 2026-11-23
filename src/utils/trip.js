@@ -41,6 +41,34 @@ export const formatMoney = (value) =>
     maximumFractionDigits: 2,
   });
 
+export const normalizePromptPay = (value) => {
+  let normalized = String(value || "").trim().replace(/[\s-]/g, "");
+  normalized = normalized.replace(/[^\d+]/g, "");
+
+  if (normalized.startsWith("+66")) {
+    normalized = `0${normalized.slice(3)}`;
+  } else if (normalized.startsWith("66") && normalized.length === 11) {
+    normalized = `0${normalized.slice(2)}`;
+  }
+
+  return normalized.replace(/\D/g, "");
+};
+
+export const validatePromptPay = (value) => {
+  const normalized = normalizePromptPay(value);
+  if (!normalized) return { valid: true, normalized: "" };
+
+  const valid =
+    (normalized.length === 10 && /^0\d{9}$/.test(normalized)) ||
+    (normalized.length === 13 && /^\d{13}$/.test(normalized));
+
+  return {
+    valid,
+    normalized,
+    message: "กรุณากรอกพร้อมเพย์เป็นเบอร์มือถือ 10 หลักหรือเลขบัตรประชาชน 13 หลัก",
+  };
+};
+
 export const openBankApp = async (textToCopy, scheme, title) => {
   let copied = false;
   if (navigator.clipboard?.writeText) {
