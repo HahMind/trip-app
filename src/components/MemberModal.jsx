@@ -129,8 +129,12 @@ export default function MemberModal({
                   type="text"
                   placeholder="เบอร์พร้อมเพย์..."
                   value={newPayForm.promptpay}
+                  inputMode="numeric"
                   onChange={(e) =>
-                    setNewPayForm({ ...newPayForm, promptpay: e.target.value })
+                    setNewPayForm({
+                      ...newPayForm,
+                      promptpay: normalizePromptPay(e.target.value),
+                    })
                   }
                   className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                 />

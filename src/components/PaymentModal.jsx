@@ -24,8 +24,9 @@ export default function PaymentModal({
   const details = memberDetails[to] || {};
   // const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
   const [tab, setTab] = useState("qr");
+  const normalizedPromptPay = normalizePromptPay(details.promptpay);
   const [form, setForm] = useState({
-    promptpay: details.promptpay || "",
+    promptpay: normalizedPromptPay,
     bankId: details.bankId || "kbank",
     bankAcc: details.bankAcc || "",
   });
@@ -106,11 +107,11 @@ export default function PaymentModal({
         <div className="p-5">
           {tab === "qr" && (
             <div className="flex flex-col items-center">
-              {details.promptpay ? (
+              {normalizedPromptPay ? (
                 <>
                   <div className="mb-4 overflow-hidden rounded-lg bg-white p-2">
                     <img
-                      src={`https://promptpay.io/${details.promptpay}/${amount}.png`}
+                      src={`https://promptpay.io/${normalizedPromptPay}/${amount}.png`}
                       alt="PromptPay QR"
                       className="h-48 w-48 object-contain"
                     />
@@ -118,7 +119,7 @@ export default function PaymentModal({
                   <p className="text-xs text-gray-400">
                     พร้อมเพย์:{" "}
                     <span className="font-mono text-gray-200">
-                      {details.promptpay}
+                      {normalizedPromptPay}
                     </span>
                   </p>
                 </>

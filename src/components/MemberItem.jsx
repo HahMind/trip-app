@@ -2,6 +2,8 @@ import { Edit2, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { BANKS } from "../data/constants";
 import useSwipeDrag from "../hooks/useSwipeDrag";
+import { dynaura } from "dynaura";
+import { normalizePromptPay, validatePromptPay } from "../utils/trip";
 
 export default function MemberItem({
   member,
@@ -126,7 +128,13 @@ export default function MemberItem({
             <input
               type="text"
               value={form.promptpay}
-              onChange={(e) => setForm({ ...form, promptpay: e.target.value })}
+              inputMode="numeric"
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  promptpay: normalizePromptPay(e.target.value),
+                })
+              }
               className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
               placeholder="เช่น 0812345678"
             />
@@ -163,7 +171,19 @@ export default function MemberItem({
           </div>
           <button
             onClick={() => {
-              onUpdateDetails(member, form);
+              const validation = validatePromptPay(form.promptpay);
+              if (!validation.valid) {
+                dynaura.warning({
+                  title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+                  description: validation.message,
+                  duration: 4000,
+                });
+                return;
+              }
+              onUpdateDetails(member, {
+                ...form,
+                promptpay: validation.normalized,
+              });
               onEdit(); // ปิดฟอร์มแก้ไขหลังจากกดบันทึก
             }}
             className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"

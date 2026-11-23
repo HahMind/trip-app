@@ -43,18 +43,32 @@ export const formatMoney = (value) =>
 
 export const normalizePromptPay = (value) => {
   let normalized = String(value || "").trim().replace(/[\s-]/g, "");
-  normalized = normalized.replace(/[^\d+]/g, "");
-
   if (normalized.startsWith("+66")) {
     normalized = `0${normalized.slice(3)}`;
   } else if (normalized.startsWith("66") && normalized.length === 11) {
     normalized = `0${normalized.slice(2)}`;
   }
 
-  return normalized.replace(/\D/g, "");
+  return normalized;
 };
 
 export const validatePromptPay = (value) => {
+  const raw = String(value || "").trim();
+  if (raw && /[^0-9+\-\s]/.test(raw)) {
+    return {
+      valid: false,
+      normalized: "",
+      message: "กรุณากรอกเฉพาะตัวเลข เว้นวรรคหรือเครื่องหมาย - เท่านั้น",
+    };
+  }
+  if (raw.includes("+") && !raw.replace(/[\s-]/g, "").startsWith("+66")) {
+    return {
+      valid: false,
+      normalized: "",
+      message: "กรุณากรอกเบอร์โทรหรือเลขบัตรประชาชนที่ถูกต้อง",
+    };
+  }
+
   const normalized = normalizePromptPay(value);
   if (!normalized) return { valid: true, normalized: "" };
 
