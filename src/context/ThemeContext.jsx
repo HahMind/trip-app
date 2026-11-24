@@ -4,7 +4,7 @@ const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("tripTheme") || "dark",
+    () => localStorage.getItem("tripTheme") || "pink",
   );
 
   useEffect(() => {
@@ -13,8 +13,9 @@ export function ThemeProvider({ children }) {
 
     const themeColors = {
       dark: "#111827",
+      pink: "#fec7d7",
       light: "#f8fcf9",
-      purple: "#faf9fc",
+      purple: "#faeee7",
     };
     const themeColor = themeColors[theme] || themeColors.dark;
 

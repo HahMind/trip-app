@@ -739,9 +739,9 @@ export default function App() {
         onOpenMemberModal={() => setShowMemberModal(true)}
       />
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-6 p-4 md:grid-cols-2 lg:grid-cols-4">
+      <main className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 p-4 lg:grid-cols-3">
         <section
-          className={`rounded-xl border p-5 shadow-sm transition-colors ${
+          className={`rounded-xl border p-6 shadow-sm transition-colors lg:col-span-3 ${
             editId
               ? "border-yellow-400 bg-yellow-100/15"
               : "border-gray-700 bg-gray-900"
@@ -758,8 +758,8 @@ export default function App() {
               {editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}
             </h2>
           </div>
-          <form onSubmit={handleAddExpense} className="space-y-3">
-            <div className="flex gap-2">
+          <form onSubmit={handleAddExpense} className="grid gap-3 lg:grid-cols-2">
+            <div className="flex gap-2 lg:order-2">
               <input
                 type="date"
                 value={date}
@@ -777,7 +777,7 @@ export default function App() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none lg:order-1"
             >
               {CATEGORIES.map((opt) => (
                 <option key={opt} value={opt}>
@@ -787,7 +787,7 @@ export default function App() {
             </select>
 
             {category === "ค่าน้ำมัน" && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2 lg:order-3 lg:col-span-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-[10px] text-gray-400">
@@ -822,13 +822,13 @@ export default function App() {
               placeholder="ชื่อรายการ (เว้นว่างได้)"
               value={item}
               onChange={(e) => setItem(e.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none lg:order-4 lg:col-span-2"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:order-5">
               <input
                 type="number"
                 inputMode="decimal"
-                placeholder="0.00"
+                placeholder="จำนวนเงิน"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
@@ -854,7 +854,7 @@ export default function App() {
             </div>
 
             {editId ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2 lg:order-6 lg:col-span-2">
                 <button
                   type="button"
                   onClick={cancelEdit}
@@ -878,7 +878,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isSubmittingExpense}
-                className={`w-full rounded-lg py-3 font-bold text-gray-950 transition ${
+                className={`w-full rounded-lg py-3 font-bold text-gray-950 transition lg:order-6 lg:col-span-2 ${
                   isSubmittingExpense
                     ? "cursor-not-allowed bg-gray-500 shimmer"
                     : "bg-lime-400 hover:bg-lime-300"
@@ -890,7 +890,7 @@ export default function App() {
           </form>
         </section>
 
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="lg:col-span-2" onClick={(e) => e.stopPropagation()}>
           <ExpenseList
             expenses={regularExpenses}
             groupedExpenses={groupedExpenses}
