@@ -1,0 +1,3588 @@
+
+===== ./index.html =====
+
+<!doctype html>
+<html lang="th" class="bg-gray-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="application-name" content="Trip Calc" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Trip Calc" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=contain"
+    />
+    <link rel="icon" type="image/x-icon" href="/trip-icon.svg" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/trip-icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <title>Trip Calc</title>
+  </head>
+  <body class="bg-gray-950 text-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+
+===== ./postcss.config.js =====
+
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+    'postcss-nested': {},
+    autoprefixer: {},
+  },
+}
+
+
+===== ./src/App.css =====
+
+.counter {
+  font-size: 16px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 2px solid transparent;
+  transition: border-color 0.3s;
+  margin-bottom: 24px;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.hero {
+  position: relative;
+
+  .base,
+  .framework,
+  .vite {
+    inset-inline: 0;
+    margin: 0 auto;
+  }
+
+  .base {
+    width: 170px;
+    position: relative;
+    z-index: 0;
+  }
+
+  .framework,
+  .vite {
+    position: absolute;
+  }
+
+  .framework {
+    z-index: 1;
+    top: 34px;
+    height: 28px;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
+      scale(1.4);
+  }
+
+  .vite {
+    z-index: 0;
+    top: 107px;
+    height: 26px;
+    width: auto;
+    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
+      scale(0.8);
+  }
+}
+
+#center {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  place-content: center;
+  place-items: center;
+  flex-grow: 1;
+
+  @media (max-width: 1024px) {
+    padding: 32px 20px 24px;
+    gap: 18px;
+  }
+}
+
+#next-steps {
+  display: flex;
+  border-top: 1px solid var(--border);
+  text-align: left;
+
+  & > div {
+    flex: 1 1 0;
+    padding: 32px;
+    @media (max-width: 1024px) {
+      padding: 24px 20px;
+    }
+  }
+
+  .icon {
+    margin-bottom: 16px;
+    width: 22px;
+    height: 22px;
+  }
+
+  @media (max-width: 1024px) {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+#docs {
+  border-right: 1px solid var(--border);
+
+  @media (max-width: 1024px) {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+#next-steps ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 32px 0 0;
+
+  .logo {
+    height: 18px;
+  }
+
+  a {
+    color: var(--text-h);
+    font-size: 16px;
+    border-radius: 6px;
+    background: var(--social-bg);
+    display: flex;
+    padding: 6px 12px;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: box-shadow 0.3s;
+
+    &:hover {
+      box-shadow: var(--shadow);
+    }
+    .button-icon {
+      height: 18px;
+      width: 18px;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+
+    li {
+      flex: 1 1 calc(50% - 8px);
+    }
+
+    a {
+      width: 100%;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+  }
+}
+
+#spacer {
+  height: 88px;
+  border-top: 1px solid var(--border);
+  @media (max-width: 1024px) {
+    height: 48px;
+  }
+}
+
+.ticks {
+  position: relative;
+  width: 100%;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: -4.5px;
+    border: 5px solid transparent;
+  }
+
+  &::before {
+    left: 0;
+    border-left-color: var(--border);
+  }
+  &::after {
+    right: 0;
+    border-right-color: var(--border);
+  }
+}
+
+
+===== ./src/App.jsx =====
+
+import { WifiOff } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import Swal from "sweetalert2";
+import { dynaura, Toaster } from "dynaura";
+import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
+import {
+  formatForDB,
+  formatMoney,
+  getStoredMemberDetails,
+  getStoredMembers,
+  getTodayISO,
+  parseForUI,
+} from "./utils/trip";
+import ExpenseForm from "./components/ExpenseForm";
+import ExpenseList from "./components/ExpenseList";
+import HistoryModal from "./components/HistoryModal";
+import MemberModal from "./components/MemberModal";
+import PaymentModal from "./components/PaymentModal";
+import SplitModal from "./components/SplitModal";
+import TripHeader from "./components/TripHeader";
+import ThemeMenu from "./components/ThemeMenu";
+import SettlementSection from "./components/SettlementSection";
+import usePinchGuard from "./hooks/usePinchGuard";
+import useTripData from "./hooks/useTripData";
+import useSettlements from "./hooks/useSettlements";
+import { supabase } from "./services/supabase";
+const version_number = "3.2.0";
+
+export default function App() {
+  const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
+
+  const [paidBy, setPaidBy] = useState(() => {
+    const saved = localStorage.getItem("defaultPaidBy");
+    const storedMembers = getStoredMembers();
+    return saved && storedMembers.includes(saved)
+      ? saved
+      : storedMembers[0] || "";
+  });
+
+  const updatePaidByFromMembers = useCallback((members) => {
+    setPaidBy((previous) =>
+      members.includes(previous) ? previous : members[0] || "",
+    );
+  }, []);
+  const {
+    members: MEMBERS,
+    expenses,
+    isOffline,
+    loading,
+    isSyncing,
+    refreshMembers,
+    refreshExpenses,
+  } = useTripData(updatePaidByFromMembers);
+
+  const [isListExpanded, setIsListExpanded] = useState(false);
+  const [collapsedDates, setCollapsedDates] = useState({});
+  const [showHistory, setShowHistory] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [activePayment, setActivePayment] = useState(null);
+  const [activeSplitExpense, setActiveSplitExpense] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [swipedId, setSwipedId] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+  const [pendingMemberAction, setPendingMemberAction] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingSplitId, setPendingSplitId] = useState(null);
+  const [pendingSettlement, setPendingSettlement] = useState(null);
+  const [pendingHistoryId, setPendingHistoryId] = useState(null);
+  const expenseSubmitLock = useRef(false);
+  const settlementSubmitLock = useRef(false);
+  usePinchGuard();
+
+  const [date, setDate] = useState(getTodayISO());
+  const [item, setItem] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState(CATEGORIES[0]);
+
+  const [odometerStart, setOdometerStart] = useState(
+    () => localStorage.getItem("lastOdometerEnd") || "",
+  );
+  const [odometerEnd, setOdometerEnd] = useState("");
+
+  const handleAppClick = () => {
+    if (swipedId) setSwipedId(null);
+  };
+
+  // บันทึกตรงเข้า Database
+  const handleAddMember = async (name, details) => {
+    if (pendingMemberAction) return;
+    // 1. ตรวจสอบสถานะการเชื่อมต่ออินเทอร์เน็ต
+    if (isOffline)
+      return dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+
+    if (!MEMBERS.includes(name)) {
+      setPendingMemberAction(name);
+      const notificationId = dynaura.loading({
+        id: `add-member-${Date.now()}`,
+        title: `กำลังเพิ่ม ${name}`,
+        description: "กำลังบันทึกสมาชิกลงฐานข้อมูล",
+        progress: 0.15,
+      });
+      // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
+      try {
+        const { error } = await supabase.from("trip_members").insert([{ name }]);
+        if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
+
+        setPaidBy(name);
+        localStorage.setItem("defaultPaidBy", name);
+
+        await refreshMembers();
+
+        if (details) handleUpdateMemberDetails(name, details, false);
+        dynaura.update(notificationId, {
+          type: "success",
+          title: "เพิ่ม " + name + " สำเร็จ",
+          description: undefined,
+          progress: undefined,
+          duration: 3000,
+        });
+      } catch (error) {
+        dynaura.update(notificationId, {
+          type: "error",
+          title: "เพิ่มไม่สำเร็จ",
+          description: error.message,
+          progress: undefined,
+          duration: 5000,
+        });
+      } finally {
+        setPendingMemberAction(null);
+      }
+    }
+  };
+
+  const handleUpdateMemberDetails = (name, details, showToast = true) => {
+    const updated = { ...memberDetails, [name]: details };
+    setMemberDetails(updated);
+    localStorage.setItem("memberDetails", JSON.stringify(updated));
+    if (showToast)
+      dynaura.success({
+        title: "บันทึกข้อมูลเรียบร้อย",
+        description: `ข้อมูลการชำระเงินของ ${name}`,
+        duration: 1000,
+      });
+  };
+
+  const handleRemoveMember = async (name, hasDebt) => {
+    if (pendingMemberAction) return;
+    if (isOffline)
+      return dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถลบสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+    if (MEMBERS.length <= 1)
+      return dynaura.warning({
+        title: "ลบไม่ได้",
+        description: "ต้องมีสมาชิกอย่างน้อย 1 คน",
+        duration: 4000,
+      });
+    if (hasDebt)
+      return dynaura.error({
+        title: "ลบไม่ได้",
+        description: `${name} มียอดค้างชำระอยู่`,
+        duration: 4000,
+      });
+
+    const result = await Swal.fire({
+      ...SWAL_THEME,
+      title: "ยืนยันการลบ",
+      text: `ลบ ${name} ออกจากทริป?`,
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+      customClass: {
+        ...SWAL_THEME.customClass,
+        confirmButton:
+          "bg-red-600 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-500 transition text-sm cursor-pointer",
+      },
+    });
+    if (!result.isConfirmed) return;
+    setPendingMemberAction(name);
+    const notificationId = dynaura.loading({
+      id: `remove-member-${name}-${Date.now()}`,
+      title: `กำลังลบ ${name}`,
+      description: "กำลังอัปเดตรายชื่อสมาชิก",
+      progress: 0.15,
+    });
+    try {
+      const { error } = await supabase
+        .from("trip_members")
+        .delete()
+        .eq("name", name);
+      if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
+      await refreshMembers();
+      dynaura.update(notificationId, {
+        type: "success",
+        title: `ลบ ${name} แล้ว`,
+        description: undefined,
+        progress: undefined,
+        duration: 3000,
+      });
+    } catch (error) {
+      dynaura.update(notificationId, {
+        type: "error",
+        title: "ลบไม่สำเร็จ",
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
+      });
+    } finally {
+      setPendingMemberAction(null);
+    }
+  };
+
+  const handleAddExpense = async (event) => {
+    event.preventDefault();
+    if (expenseSubmitLock.current) return;
+    if (isOffline)
+      return Swal.fire({
+        ...SWAL_THEME,
+        icon: "warning",
+        title: "ออฟไลน์",
+        text: "ไม่สามารถบันทึกรายการขณะออฟไลน์ได้",
+      });
+
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0)
+      return Swal.fire({
+        ...SWAL_THEME,
+        icon: "warning",
+        title: "กรุณากรอกจำนวนเงิน",
+      });
+
+    const wasEditing = Boolean(editId);
+    expenseSubmitLock.current = true;
+    setIsSubmittingExpense(true);
+    const notificationId = dynaura.loading({
+      id: `expense-${wasEditing ? "edit" : "add"}-${Date.now()}`,
+      title: wasEditing ? "กำลังแก้ไขรายการ" : "กำลังบันทึกรายการ",
+      description: item.trim() || category,
+      progress: 0.12,
+    });
+
+    const payload = {
+      expense_date: formatForDB(date),
+      item_name: item.trim() || category,
+      amount: numericAmount,
+      category,
+      paid_by: paidBy,
+      split_between: [paidBy],
+      odometer_start:
+        category === "ค่าน้ำมัน" && odometerStart
+          ? Number(odometerStart)
+          : null,
+      odometer_end:
+        category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
+    };
+
+    try {
+      if (wasEditing) {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .update(payload)
+          .eq("id", editId);
+        if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
+        setEditId(null);
+        setHighlightedId(editId);
+        setTimeout(() => setHighlightedId(null), 2000);
+      } else {
+        const { error } = await supabase.from("trip_expenses").insert([payload]);
+        if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
+      }
+
+      await refreshExpenses();
+      dynaura.update(notificationId, { progress: 1 });
+      setItem("");
+      setAmount("");
+      setCategory(CATEGORIES[0]);
+      setOdometerStart("");
+      setOdometerEnd("");
+      localStorage.setItem("lastOdometerEnd", "");
+      dynaura.update(notificationId, {
+        type: "success",
+        title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
+        description: `${formatMoney(numericAmount)} บาท`,
+        progress: undefined,
+        duration: 4000,
+        confetti: true,
+      });
+    } catch (error) {
+      dynaura.update(notificationId, {
+        type: "error",
+        title: wasEditing ? "แก้ไขไม่สำเร็จ" : "บันทึกไม่สำเร็จ",
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
+      });
+    } finally {
+      expenseSubmitLock.current = false;
+      setIsSubmittingExpense(false);
+    }
+  };
+
+  const handleUpdateSplit = async (id, newSplit) => {
+    if (pendingSplitId) return false;
+    if (isOffline) {
+      dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถแก้ไขการหารขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+      return false;
+    }
+    setPendingSplitId(id);
+    const notificationId = dynaura.loading({
+      id: `update-split-${id}-${Date.now()}`,
+      title: "กำลังอัปเดตการหาร",
+      description: "กำลังบันทึกผู้ร่วมรายการ",
+      progress: 0.15,
+    });
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .update({ split_between: newSplit })
+        .eq("id", id);
+      if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
+      await refreshExpenses();
+      dynaura.update(notificationId, {
+        type: "success",
+        title: "อัปเดตการหารสำเร็จ",
+        description: "ยอดแบ่งรายการได้รับการอัปเดต",
+        progress: undefined,
+        duration: 3000,
+      });
+      return true;
+    } catch (error) {
+      dynaura.update(notificationId, {
+        type: "error",
+        title: "อัปเดตไม่สำเร็จ",
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
+      });
+      return false;
+    } finally {
+      setPendingSplitId(null);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setDate(getTodayISO());
+    setItem("");
+    setAmount("");
+    setCategory(CATEGORIES[0]);
+    setOdometerStart("");
+    setOdometerEnd("");
+  };
+
+  const handleDelete = async (id) => {
+    if (pendingDeleteId) return;
+    if (isOffline)
+      return dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถลบรายการขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+    const r = await Swal.fire({
+      ...SWAL_THEME,
+      title: "ยืนยันการลบ?",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      customClass: {
+        ...SWAL_THEME.customClass,
+        confirmButton:
+          "bg-red-600 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-red-500 transition text-sm cursor-pointer",
+      },
+    });
+    if (r.isConfirmed) {
+      setPendingDeleteId(id);
+      const notificationId = dynaura.loading({
+        id: `delete-expense-${id}-${Date.now()}`,
+        title: "กำลังลบรายการ",
+        description: "กำลังอัปเดตรายจ่ายและยอดคงเหลือ",
+        progress: 0.15,
+      });
+      try {
+        const { error } = await supabase
+          .from("trip_expenses")
+          .delete()
+          .eq("id", id);
+        if (error) throw error;
+        dynaura.update(notificationId, { progress: 0.72 });
+        await refreshExpenses();
+        dynaura.update(notificationId, {
+          type: "success",
+          title: "ลบรายการแล้ว",
+          description: "รายจ่ายและยอดคงเหลือถูกอัปเดต",
+          progress: undefined,
+          duration: 3000,
+        });
+      } catch (error) {
+        dynaura.update(notificationId, {
+          type: "error",
+          title: "ลบไม่สำเร็จ",
+          description: error.message,
+          progress: undefined,
+          duration: 5000,
+        });
+      } finally {
+        setPendingDeleteId(null);
+      }
+    }
+  };
+
+  const handleUndoHistory = async (id) => {
+    if (pendingHistoryId) return;
+    if (isOffline)
+      return dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถกู้คืนยอดขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+    setPendingHistoryId(id);
+    const notificationId = dynaura.loading({
+      id: `undo-history-${id}-${Date.now()}`,
+      title: "กำลังกู้คืนยอด",
+      description: "กำลังลบประวัติการเคลียร์ยอด",
+      progress: 0.15,
+    });
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
+      await refreshExpenses();
+      dynaura.update(notificationId, {
+        type: "success",
+        title: "กู้คืนยอดเรียบร้อย",
+        description: "ยอดค้างชำระถูกคำนวณใหม่",
+        progress: undefined,
+        duration: 3000,
+      });
+    } catch (error) {
+      dynaura.update(notificationId, {
+        type: "error",
+        title: "กู้คืนไม่สำเร็จ",
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
+      });
+    } finally {
+      setPendingHistoryId(null);
+    }
+  };
+
+  const handleSettleDebt = async (from, to, settleAmount) => {
+    if (settlementSubmitLock.current) return;
+    if (isOffline)
+      return Swal.fire({
+        ...SWAL_THEME,
+        icon: "warning",
+        title: "ออฟไลน์",
+        text: "ไม่สามารถทำรายการขณะออฟไลน์ได้",
+      });
+    const today = new Date();
+    const formattedDate = `${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+    const newHistory = {
+      expense_date: formattedDate,
+      item_name: `[เคลียร์ยอด] ${from} -> ${to}`,
+      amount: settleAmount,
+      category: HISTORY_CATEGORY,
+      paid_by: from,
+      split_between: [from], // 👈 🧠 เพิ่มบรรทัดนี้เข้ามา! เพื่อแก้บั๊กไม่ให้ฐานข้อมูลเตือน Error
+    };
+
+    settlementSubmitLock.current = true;
+    setPendingSettlement(`${from}-${to}`);
+    const notificationId = dynaura.loading({
+      id: `settle-${from}-${to}-${Date.now()}`,
+      title: "กำลังบันทึกประวัติการโอน",
+      description: `${from} → ${to}`,
+      progress: 0.15,
+    });
+    try {
+      const { error } = await supabase.from("trip_expenses").insert([newHistory]);
+      if (error) throw error;
+      dynaura.update(notificationId, { progress: 0.72 });
+      setActivePayment(null);
+      await refreshExpenses();
+      dynaura.update(notificationId, {
+        type: "success",
+        title: "บันทึกประวัติการโอนแล้ว",
+        description: `฿${formatMoney(settleAmount)} จาก ${from} ถึง ${to}`,
+        progress: undefined,
+        duration: 4000,
+        confetti: true,
+      });
+    } catch (error) {
+      dynaura.update(notificationId, {
+        type: "error",
+        title: "บันทึกไม่สำเร็จ",
+        description: error.message,
+        progress: undefined,
+        duration: 5000,
+      });
+    } finally {
+      settlementSubmitLock.current = false;
+      setPendingSettlement(null);
+    }
+  };
+
+  // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
+  // const startPressTimer = () => {
+  //   hasScrolled.current = false;
+  //   setIsPressing(true);
+  //   pressTimer.current = setTimeout(() => {
+  //     window.scrollTo({ top: 0, behavior: "smooth" });
+  //     hasScrolled.current = true;
+  //     setIsPressing(false);
+  //   }, 400);
+  // };
+  // const cancelPressTimer = () => {
+  //   clearTimeout(pressTimer.current);
+  //   setIsPressing(false);
+  // };
+
+  const regularExpenses = expenses.filter(
+    (e) => e.category !== HISTORY_CATEGORY,
+  );
+  const historyExpenses = expenses.filter(
+    (e) => e.category === HISTORY_CATEGORY,
+  );
+  const groupedExpenses = useMemo(
+    () =>
+      regularExpenses.reduce((groups, expense) => {
+        (groups[expense.expense_date] ||= []).push(expense);
+        return groups;
+      }, {}),
+    [regularExpenses],
+  );
+  const totalExpense = useMemo(
+    () => regularExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
+    [regularExpenses],
+  );
+
+  const settlements = useSettlements(expenses, MEMBERS);
+
+  // หน้าจอตอนกำลังโหลดข้อมูลตอนเปิดแอปครั้งแรก
+  // if (loading) {
+  //   return (
+  //     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
+  //       <Loader2 size={48} className="mb-4 animate-spin text-lime-400" />
+  //       <p className="text-sm font-bold text-gray-400">
+  //         กำลังเชื่อมต่อฐานข้อมูล...
+  //       </p>
+  //     </div>
+  //   );
+  // }
+
+  return (
+    <div
+      className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
+      onClick={handleAppClick}
+    >
+      <Toaster
+        position="top"
+        offset={0}
+        haptics
+      />
+      <style>{`
+        @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
+        .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
+
+        /*
+         * DYNAURA_TOASTER_TOP:
+         * แสดงใต้ safe area แล้วปรับระยะเพิ่มเติมจากขอบบนได้ที่เลข px
+         * เพิ่มเลข px เพื่อขยับลง; ลดเลขเพื่อขยับขึ้น
+         */
+        .dynaura-root[data-y="top"] {
+          top: max(11px, calc(env(safe-area-inset-top, 0px) - 48px));
+        }
+
+        /*
+         * DYNAURA_TOASTER_SIZE:
+         * ปรับความกว้างสูงสุดได้ที่ min(380px, 92vw)
+         * เพิ่ม 380px เป็นขนาดกว้างขึ้น ลดลงเพื่อเล็กลง
+         */
+        .dynaura-inner {
+        max-width: min(350px, 88vw);
+        }
+        .dynaura-island[data-expanded="true"] .dynaura-inner {
+          min-width: min(320px, 88vw);
+        }
+      `}</style>
+      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md  px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
+        {version_number}
+      </div>
+
+      {isOffline && (
+        <div
+          role="status"
+          className="relative z-40 flex items-center justify-center gap-2 border-b border-amber-500/40 bg-amber-500/95 px-3 py-2 text-center text-xs font-bold text-gray-950"
+        >
+          <WifiOff size={14} />
+          <span>ออฟไลน์อยู่ — ดูข้อมูลล่าสุดจากเครื่อง</span>
+        </div>
+      )}
+
+      <TripHeader
+        totalExpense={totalExpense}
+        isSyncing={loading || isSyncing}
+        onRefresh={() => {
+          refreshMembers();
+          refreshExpenses();
+        }}
+        MEMBERS={MEMBERS}
+        onOpenMemberModal={() => setShowMemberModal(true)}
+      />
+
+      <main className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 p-4 lg:grid-cols-3">
+        <ExpenseForm
+          editId={editId}
+          date={date}
+          setDate={setDate}
+          item={item}
+          setItem={setItem}
+          amount={amount}
+          setAmount={setAmount}
+          category={category}
+          setCategory={setCategory}
+          paidBy={paidBy}
+          setPaidBy={(value) => {
+            setPaidBy(value);
+            localStorage.setItem("defaultPaidBy", value);
+          }}
+          members={MEMBERS}
+          odometerStart={odometerStart}
+          setOdometerStart={setOdometerStart}
+          odometerEnd={odometerEnd}
+          setOdometerEnd={setOdometerEnd}
+          isSubmitting={isSubmittingExpense}
+          onSubmit={handleAddExpense}
+          onCancel={cancelEdit}
+          onAddMember={() => setShowMemberModal(true)}
+        />
+
+        <div className="lg:col-span-2" onClick={(e) => e.stopPropagation()}>
+          <ExpenseList
+            expenses={regularExpenses}
+            groupedExpenses={groupedExpenses}
+            loading={false}
+            isExpanded={isListExpanded}
+            collapsedDates={collapsedDates}
+            onToggleExpanded={() => setIsListExpanded(!isListExpanded)}
+            onToggleDate={(val) =>
+              setCollapsedDates((d) => ({ ...d, [val]: !d[val] }))
+            }
+            onEdit={(exp) => {
+              setEditId(exp.id);
+              setDate(parseForUI(exp.expense_date));
+              setPaidBy(exp.paid_by);
+              setItem(exp.item_name);
+              setAmount(exp.amount);
+              setCategory(exp.category);
+              setOdometerStart(exp.odometer_start || "");
+              setOdometerEnd(exp.odometer_end || "");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onDelete={handleDelete}
+            onOpenSplitModal={setActiveSplitExpense}
+            pendingDeleteId={pendingDeleteId}
+            pendingSplitId={pendingSplitId}
+            swipedId={swipedId}
+            setSwipedId={setSwipedId}
+            highlightedId={highlightedId}
+            MEMBERS={MEMBERS}
+          />
+        </div>
+
+        <SettlementSection
+          settlements={settlements}
+          onOpenPayment={setActivePayment}
+          onOpenHistory={() => setShowHistory(true)}
+          pendingSettlement={pendingSettlement}
+        />
+      </main>
+
+      <ThemeMenu />
+
+      {showMemberModal && (
+        <MemberModal
+          members={MEMBERS}
+          balances={settlements.balances}
+          memberDetails={memberDetails}
+          onClose={() => setShowMemberModal(false)}
+          onAdd={handleAddMember}
+          onRemove={handleRemoveMember}
+          onUpdateDetails={handleUpdateMemberDetails}
+          pendingMemberAction={pendingMemberAction}
+        />
+      )}
+      {activePayment && (
+        <PaymentModal
+          from={activePayment.from}
+          to={activePayment.to}
+          amount={activePayment.amount}
+          memberDetails={memberDetails}
+          onClose={() => setActivePayment(null)}
+          onUpdateDetails={handleUpdateMemberDetails}
+          onConfirm={handleSettleDebt}
+          isSubmitting={Boolean(pendingSettlement)}
+        />
+      )}
+      {activeSplitExpense && (
+        <SplitModal
+          expense={activeSplitExpense}
+          members={MEMBERS}
+          onClose={() => setActiveSplitExpense(null)}
+          onSave={handleUpdateSplit}
+        />
+      )}
+      {showHistory && (
+        <HistoryModal
+          expenses={historyExpenses}
+          onClose={() => setShowHistory(false)}
+          onUndo={handleUndoHistory}
+          pendingHistoryId={pendingHistoryId}
+        />
+      )}
+    </div>
+  );
+}
+
+
+===== ./src/components/ExpenseForm.jsx =====
+
+import { Edit2, Receipt } from "lucide-react";
+import { CATEGORIES } from "../data/constants";
+import { getTodayISO } from "../utils/trip";
+
+export default function ExpenseForm({
+  editId,
+  date,
+  setDate,
+  item,
+  setItem,
+  amount,
+  setAmount,
+  category,
+  setCategory,
+  paidBy,
+  setPaidBy,
+  members,
+  odometerStart,
+  setOdometerStart,
+  odometerEnd,
+  setOdometerEnd,
+  isSubmitting,
+  onSubmit,
+  onCancel,
+  onAddMember,
+}) {
+  return (
+    <section
+      className={`rounded-xl border p-6 shadow-sm transition-colors lg:col-span-3 ${
+        editId
+          ? "border-yellow-400 bg-yellow-100/15"
+          : "border-gray-700 bg-gray-900"
+      }`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
+        {editId ? (
+          <Edit2 size={20} className="text-yellow-400" />
+        ) : (
+          <Receipt size={20} />
+        )}
+        <h2 className={editId ? "text-yellow-400" : ""}>
+          {editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}
+        </h2>
+      </div>
+      <form onSubmit={onSubmit} className="grid gap-3 lg:grid-cols-2">
+        <div className="flex gap-2 lg:order-2">
+          <input
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setDate(getTodayISO())}
+            className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+          >
+            วันนี้
+          </button>
+        </div>
+        <select
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+          className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none lg:order-1"
+        >
+          {CATEGORIES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+
+        {category === "ค่าน้ำมัน" && (
+          <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 lg:order-3 lg:col-span-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-gray-400">
+                  ไมล์เริ่มต้น
+                </label>
+                <input
+                  type="number"
+                  placeholder="ไมล์เริ่มต้น"
+                  value={odometerStart}
+                  onChange={(event) => setOdometerStart(event.target.value)}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-400">
+                  ไมล์สิ้นสุด
+                </label>
+                <input
+                  type="number"
+                  placeholder="ไมล์สิ้นสุด"
+                  value={odometerEnd}
+                  onChange={(event) => setOdometerEnd(event.target.value)}
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="ชื่อรายการ (เว้นว่างได้)"
+          value={item}
+          onChange={(event) => setItem(event.target.value)}
+          className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none lg:order-4 lg:col-span-2"
+        />
+        <div className="grid grid-cols-1 gap-3 lg:order-5 lg:grid-cols-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+          />
+          <select
+            value={paidBy}
+            onChange={(event) => {
+              if (event.target.value === "__ADD__") onAddMember();
+              else setPaidBy(event.target.value);
+            }}
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
+          >
+            {members.map((member) => (
+              <option key={member} value={member}>
+                {member}
+              </option>
+            ))}
+            <option value="__ADD__">+ เพิ่มคนใหม่...</option>
+          </select>
+        </div>
+
+        {editId ? (
+          <div className="flex gap-2 lg:order-6 lg:col-span-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 rounded-lg bg-gray-700 py-3 font-bold text-gray-100 transition hover:bg-gray-600"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`flex-2 rounded-lg py-3 font-bold text-gray-950 transition ${
+                isSubmitting
+                  ? "cursor-not-allowed bg-gray-500 shimmer"
+                  : "bg-yellow-400 hover:bg-yellow-300"
+              }`}
+            >
+              {isSubmitting ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className={`w-full rounded-lg py-3 font-bold text-gray-950 transition lg:order-6 lg:col-span-2 ${
+              isSubmitting
+                ? "cursor-not-allowed bg-gray-500 shimmer"
+                : "bg-lime-400 hover:bg-lime-300"
+            }`}
+          >
+            {isSubmitting ? "กำลังบันทึก..." : "บันทึกรายการ"}
+          </button>
+        )}
+      </form>
+    </section>
+  );
+}
+
+
+===== ./src/components/ExpenseItem.jsx =====
+
+import { Edit2, Trash2, Users } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { formatMoney } from "../utils/trip";
+import useSwipeDrag from "../hooks/useSwipeDrag";
+
+export default function ExpenseItem({
+  expense,
+  MEMBERS,
+  swipedId,
+  setSwipedId,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  isLast,
+  isHighlighted, //  รับ State การ Highlight
+  isPendingDelete,
+  isPendingSplit,
+}) {
+  const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
+  const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
+  const isOpen = swipedId === expense.id;
+  const {
+    drag,
+    currentOffset,
+    isSwiped,
+    consumeSuppressedClick,
+    touchHandlers,
+    mouseHandlers,
+  } = useSwipeDrag({
+    id: expense.id,
+    isOpen,
+    setOpen: setSwipedId,
+  });
+
+  //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
+  useEffect(() => {
+    if (isHighlighted && itemRef.current) {
+      itemRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center", // ให้กล่องรายการอยู่ตรงกลางจอพอดี
+      });
+    }
+  }, [isHighlighted]);
+
+  const splitList = validSplit.length > 0 
+  ? validSplit
+  : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]); // ถ้าไม่มีใครอยู่ใน split_between ให้ใช้ paid_by หรือสมาชิกคนแรกแทน
+  const isGas = expense.category === "ค่าน้ำมัน";
+  const distance =
+    isGas && expense.odometer_start && expense.odometer_end
+      ? Number(expense.odometer_end) - Number(expense.odometer_start)
+      : 0;
+
+
+  return (
+    <div
+      ref={itemRef} //  ผูก Ref เพื่อดึงหน้าจอ
+      className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
+    >
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center">
+        <button
+          onClick={() => {
+            onDelete(expense.id);
+            setSwipedId(null);
+          }}
+          disabled={isPendingDelete}
+          className={`flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition ${
+            isPendingDelete
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : "bg-red-500 hover:bg-red-600"
+          }`}
+          style={{
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.2, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active
+              ? "none"
+              : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div
+        //  สลับ Class การสว่าง (Highlight สีเหลือง) หาก isHighlighted เป็น true
+        className={`relative z-10 flex cursor-grab touch-pan-y items-center justify-between p-3 pl-8 active:cursor-grabbing transition-colors duration-700 ${
+          isHighlighted ? "bg-yellow-200/30 shadow-[inset_4px_0_0_#c9c9af]" : "bg-gray-800"
+        }`}
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active
+            ? "none"
+            : "transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease-out, box-shadow 0.5s ease-out, border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.1s",
+          borderTopRightRadius: isSwiped ? "24px" : "0px",
+          borderBottomRightRadius: isSwiped ? "24px" : "0px",
+        }}
+        {...touchHandlers}
+        {...mouseHandlers}
+        onClick={(e) => {
+          if (consumeSuppressedClick()) {
+            e.stopPropagation();
+            return;
+          }
+          setSwipedId(null);
+        }}
+      >
+        <div className="pointer-events-none flex-1">
+          <p className="mb-0.5 text-xs text-gray-400">
+            จ่ายโดย:{" "}
+            <span className="font-bold text-lime-400">{expense.paid_by}</span>
+          </p>
+          <p className="font-medium text-gray-100">{expense.item_name}</p>
+          <p className="text-xs text-gray-400">
+            {expense.category}{" "}
+            {splitList.length > 0 && (
+              <span className="text-[10px] text-sky-400">
+                {" "}
+                (หาร {splitList.length} คน)
+              </span>
+            )}
+          </p>
+          {distance > 0 && (
+            <p className="mt-0.5 text-[11px] font-medium text-amber-400">
+              ไมล์ {expense.odometer_start} - {expense.odometer_end} ({distance}{" "}
+              กม.)
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="pointer-events-none font-bold text-gray-100">
+            ฿{formatMoney(expense.amount)}
+          </p>
+          <div className="relative z-20 flex items-center gap-2">
+            <button
+              disabled={isPendingSplit}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSplitModal(expense);
+              }}
+              className={`flex h-10 w-10 items-center justify-center rounded-full border text-gray-400 transition ${
+                isPendingSplit
+                  ? "cursor-not-allowed border-gray-500 bg-gray-500 shimmer"
+                  : "border-gray-600 hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
+              }`}
+              title="เลือกคนหาร"
+              aria-label="เลือกคนหาร"
+            >
+              <Users size={19} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(expense);
+                setSwipedId(null);
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition hover:bg-lime-400/10 hover:text-lime-400"
+              title="แก้ไขรายการ"
+              aria-label="แก้ไขรายการ"
+            >
+              <Edit2 size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== ./src/components/ExpenseList.jsx =====
+
+import { ChevronDown, ChevronRight, FolderClosed, FolderOpen, Maximize2, Minimize2, Receipt } from "lucide-react";
+import { useEffect } from "react";
+import ExpenseItem from "./ExpenseItem";
+
+export default function ExpenseList({
+  expenses,
+  groupedExpenses,
+  loading,
+  isExpanded,
+  collapsedDates,
+  onToggleExpanded,
+  onToggleDate,
+  onEdit,
+  onDelete,
+  onOpenSplitModal,
+  swipedId,
+  setSwipedId,
+  highlightedId, 
+  MEMBERS,
+  pendingDeleteId,
+  pendingSplitId,
+}) {
+  useEffect(() => {
+    const handleScroll = () => {
+      if (swipedId) setSwipedId(null);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [swipedId, setSwipedId]);
+
+  return (
+    <section
+      className="relative rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm"
+      onClick={() => setSwipedId(null)}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-bold text-gray-300">
+          <Receipt size={0} /> <h2>รายการ ({expenses.length})</h2>
+        </div>
+        <button
+          onClick={onToggleExpanded}
+          className="flex items-center gap-1 rounded-full bg-gray-800 px-3 py-1.5 text-xs text-gray-300 shadow-sm"
+        >
+          {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{" "}
+          {isExpanded ? "ย่อเก็บ" : "ดูเต็ม"}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="py-4 text-center text-gray-400">กำลังโหลด...</p>
+      ) : expenses.length === 0 ? (
+        <p className="py-4 text-center text-gray-400">ไม่มีรายการ</p>
+      ) : (
+        <div
+          className={`space-y-4 pr-2 transition-all ${!isExpanded ? "max-h-96 overflow-y-auto overscroll-none" : ""}`}
+        >
+          {Object.keys(groupedExpenses).map((date) => (
+            <div
+              key={date}
+              className="overflow-hidden rounded-xl border border-gray-700 bg-gray-900 shadow-sm"
+            >
+              <button
+                onClick={() => onToggleDate(date)}
+                className="expense-date-header relative z-20 flex w-full items-center justify-between  border-b-2 border-gray-700 bg-[#374151] p-3 hover:bg-[#374151]"
+              >
+                <div className="flex items-center gap-2 font-bold text-gray-300">
+                  {collapsedDates[date] ? (
+                    <FolderClosed size={16} className="text-lime-400" />
+                  ) : (
+                    <FolderOpen size={16} className="text-lime-400" />
+                  )}
+                  <span>{date}</span>
+                  <span className="rounded-full bg-gray-600 px-2 py-0.5 text-xs font-normal text-gray-300">
+                    {groupedExpenses[date].length} รายการ
+                  </span>
+                </div>
+                {collapsedDates[date] ? (
+                  <ChevronRight size={18} className="text-lime-400" />
+                ) : (
+                  <ChevronDown size={18} className="text-lime-400" />
+                )}
+              </button>
+              <div
+                className={`grid transition-all duration-300 ease-in-out ${collapsedDates[date] ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}
+              >
+                <div className="overflow-hidden bg-gray-900 ">
+                  {groupedExpenses[date].map((expense, index) => (
+                    <ExpenseItem
+                      key={expense.id}
+                      expense={expense}
+                      swipedId={swipedId}
+                      setSwipedId={setSwipedId}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onOpenSplitModal={onOpenSplitModal}
+                      isLast={index === groupedExpenses[date].length - 1}
+                      isHighlighted={highlightedId === expense.id} 
+                      MEMBERS={MEMBERS}
+                      isPendingDelete={pendingDeleteId === expense.id}
+                      isPendingSplit={pendingSplitId === expense.id}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+===== ./src/components/HistoryModal.jsx =====
+
+import { History, RotateCcw, X } from "lucide-react";
+import { useEffect } from "react";
+import { formatMoney } from "../utils/trip";
+import ModalShell from "./ModalShell";
+
+export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId }) {
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  return (
+    <ModalShell
+      backdropClassName="bg-gray-950/60"
+      panelClassName="max-h-[80vh] max-w-md"
+      onClose={onClose}
+    >
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
+          <h2 className="flex items-center gap-2 font-bold">
+            <History size={20} /> ประวัติการเคลียร์ยอด
+          </h2>
+          <button onClick={onClose} className="hover:text-lime-300">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {expenses.length === 0 ? (
+            <p className="py-10 text-center text-gray-400">
+              ยังไม่มีประวัติการโอนเงิน
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {expenses.map((expense) => (
+                <div
+                  key={expense.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800 p-3"
+                >
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      {expense.expense_date}
+                    </p>
+                    <p className="font-medium text-gray-100">
+                      {expense.item_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 text-right">
+                    <p className="font-bold text-lime-400">
+                      ฿{formatMoney(expense.amount)}
+                    </p>
+                    <button
+                      onClick={() => onUndo(expense.id)}
+                      disabled={pendingHistoryId === expense.id}
+                      className={`ml-2 flex items-center gap-1 rounded-3xl border px-2 py-1 text-xs transition ${
+                        pendingHistoryId === expense.id
+                          ? "cursor-not-allowed border-gray-500 bg-gray-500 text-gray-300 shimmer"
+                          : "border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-gray-950"
+                      }`}
+                    >
+                      <RotateCcw size={14} /> กู้คืน
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+    </ModalShell>
+  );
+}
+
+
+===== ./src/components/MemberItem.jsx =====
+
+import { Edit2, Save, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { BANKS } from "../data/constants";
+import useSwipeDrag from "../hooks/useSwipeDrag";
+import { dynaura } from "dynaura";
+import { normalizePromptPay, validatePromptPay } from "../utils/trip";
+
+export default function MemberItem({
+  member,
+  hasDebt,
+  details,
+  onRemove,
+  onUpdateDetails,
+  swipedMember,
+  setSwipedMember,
+  isEditing,
+  onEdit,
+  setShowNewPayForm,
+  isPending,
+}) {
+  const [form, setForm] = useState({
+    promptpay: details?.promptpay || "",
+    bankId: details?.bankId || "kbank",
+    bankAcc: details?.bankAcc || "",
+  });
+
+  const isOpen = swipedMember === member;
+  const {
+    drag,
+    currentOffset,
+    isSwiped,
+    consumeSuppressedClick,
+    touchHandlers,
+    mouseHandlers,
+  } = useSwipeDrag({
+    id: member,
+    isOpen,
+    setOpen: setSwipedMember,
+    canDrag: !isEditing,
+  });
+
+  return (
+    <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
+      
+      {/* 💻 [Desktop View] ปุ่มลบโชว์ไว้ตลอดทางด้านขวา ไม่ต้องปัด */}
+      <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
+        <button
+          onClick={() => onRemove(member, hasDebt)}
+          disabled={isPending}
+          className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+            isPending
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : hasDebt
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-red-500 text-white hover:bg-red-600"
+          }`}
+          title={hasDebt ? "มียอดค้างชำระ ลบไม่ได้" : "ลบสมาชิก"}
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      {/* 📱 [Mobile View] ปุ่มลบสำหรับระบบ Swipe */}
+      <div className="absolute inset-y-0 right-3 flex md:hidden items-center justify-center">
+        <button
+          onClick={() => {
+            onRemove(member, hasDebt);
+            setSwipedMember(null);
+          }}
+          disabled={isPending}
+          className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
+            isPending
+              ? "cursor-not-allowed bg-gray-500 shimmer"
+              : hasDebt
+              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+              : "bg-red-500 text-white hover:bg-red-600"
+          }`}
+          style={{
+            opacity: Math.min(1, -currentOffset / 40),
+            transform: `scale(${Math.min(1.08, 0.2 + (-currentOffset / 70) * 0.8)})`,
+            transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          }}
+        >
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      <div
+        className="relative z-10 flex items-center justify-between bg-gray-800 p-3 md:pr-14"
+        style={{
+          transform: `translate3d(${currentOffset}px, 0, 0)`,
+          transition: drag.active
+            ? "none"
+            : "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.1s",
+          borderTopRightRadius: isSwiped ? "24px" : "0px",
+          borderBottomRightRadius: isSwiped ? "24px" : "0px",
+        }}
+        {...touchHandlers}
+        {...mouseHandlers}
+        onClick={(e) => {
+          if (consumeSuppressedClick()) {
+            e.stopPropagation();
+            return;
+          }
+          setSwipedMember(null);
+        }}
+      >
+        <span className="font-medium text-gray-100">{member}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              onEdit();
+              setShowNewPayForm(false); 
+            }}
+            className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
+          >
+            <Edit2 size={16} />
+          </button>
+        </div>
+      </div>
+
+      {isEditing && (
+        <div className="border-t border-gray-700 bg-gray-900/80 p-3 space-y-3">
+          <div>
+            <label className="mb-1 block text-[10px] text-gray-400">
+              เบอร์พร้อมเพย์ (เว้นว่างได้)
+            </label>
+            <input
+              type="tel"
+              value={form.promptpay}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
+                })
+              }
+              className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+              placeholder="เช่น 0812345678"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                ธนาคาร (หลัก)
+              </label>
+              <select
+                value={form.bankId}
+                onChange={(e) => setForm({ ...form, bankId: e.target.value })}
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-xs focus:border-lime-400 focus:outline-none"
+              >
+                {BANKS.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] text-gray-400">
+                เลขบัญชี
+              </label>
+              <input
+                type="tel"
+                value={form.bankAcc}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    bankAcc: e.target.value.replace(/\D/g, ""),
+                  })
+                }
+                className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
+                placeholder="เลขบัญชี..."
+              />
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const validation = validatePromptPay(form.promptpay);
+              if (!validation.valid) {
+                dynaura.warning({
+                  title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+                  description: validation.message,
+                  duration: 4000,
+                });
+                return;
+              }
+              onUpdateDetails(member, {
+                ...form,
+                promptpay: validation.normalized,
+              });
+              onEdit(); // ปิดฟอร์มแก้ไขหลังจากกดบันทึก
+            }}
+            className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+          >
+            <Save size={16} /> บันทึกข้อมูล
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+===== ./src/components/MemberModal.jsx =====
+
+import { Plus, UserPlus, Users, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BANKS } from "../data/constants";
+import MemberItem from "./MemberItem";
+import ModalShell from "./ModalShell";
+import { dynaura } from "dynaura";
+import { normalizePromptPay, validatePromptPay } from "../utils/trip";
+
+export default function MemberModal({
+  members,
+  balances,
+  memberDetails,
+  onClose,
+  onAdd,
+  onRemove,
+  onUpdateDetails,
+  pendingMemberAction,
+}) {
+  const [newName, setNewName] = useState("");
+  const [showNewPayForm, setShowNewPayForm] = useState(false);
+  const [newPayForm, setNewPayForm] = useState({
+    promptpay: "",
+    bankId: "kbank",
+    bankAcc: "",
+  });
+  const [swipedMember, setSwipedMember] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleAdd = (e) => {
+    e.preventDefault();
+    const trimmed = newName.trim();
+    if (trimmed) {
+      let paymentDetails = null;
+      if (showNewPayForm) {
+        const validation = validatePromptPay(newPayForm.promptpay);
+        if (!validation.valid) {
+          dynaura.warning({
+            title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+            description: validation.message,
+            duration: 4000,
+          });
+          return;
+        }
+        paymentDetails = {
+          ...newPayForm,
+          promptpay: validation.normalized,
+        };
+      }
+      onAdd(trimmed, paymentDetails);
+      setNewName("");
+      setShowNewPayForm(false);
+      setNewPayForm({ promptpay: "", bankId: "kbank", bankAcc: "" });
+    }
+  };
+
+  return (
+    <ModalShell
+      backdropClassName="bg-gray-950/70"
+      panelClassName="max-h-[85vh] max-w-md"
+      onClose={onClose}
+    >
+        <div className="flex items-center justify-between bg-gray-800 p-4 text-lime-400">
+          <h2 className="flex items-center gap-2 font-bold">
+            <Users size={20} /> จัดการสมาชิก
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-lime-300"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+            <form onSubmit={handleAdd} className="flex gap-2">
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="พิมพ์ชื่อ..."
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!newName.trim() || Boolean(pendingMemberAction)}
+                className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-bold text-gray-950 transition ${
+                  pendingMemberAction
+                    ? "cursor-not-allowed bg-gray-500 shimmer"
+                    : "bg-lime-400 hover:bg-lime-300"
+                } disabled:opacity-50`}
+              >
+                <UserPlus size={16} /> เพิ่ม
+              </button>
+            </form>
+
+            {!showNewPayForm ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNewPayForm(true);
+                  setEditingMember(null);
+                }}
+                className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-400 hover:text-sky-300 transition"
+              >
+                <Plus size={12} /> เพิ่มวิธีการชำระเงินให้{" "}
+                {newName || "เพื่อนใหม่"} (ตั้งค่าภายหลังได้)
+              </button>
+            ) : (
+              <div className="mt-3 space-y-2 border-t border-gray-700 pt-3 relative">
+                <div className="flex justify-end pr-2 ">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPayForm(false)}
+                    className="mt-2 flex items-center gap-1 text-[11px] bg-red-700 p-1.5 rounded font-medium text-gray-200 transition hover:text-red-500"
+                  >
+                    <X size={12} /> ยกเลิก
+                  </button>
+                </div>
+                <input
+                  type="tel"
+                  placeholder="เบอร์พร้อมเพย์..."
+                  value={newPayForm.promptpay}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  onChange={(e) =>
+                    setNewPayForm({
+                      ...newPayForm,
+                      promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
+                    })
+                  }
+                  className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                />
+                <p className="font-medium text-xs text-sky-400 ">หรือ</p>
+                <div className="flex gap-2 ">
+                  <select
+                    value={newPayForm.bankId}
+                    onChange={(e) =>
+                      setNewPayForm({ ...newPayForm, bankId: e.target.value })
+                    }
+                    className="flex rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                  >
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    placeholder="เลขบัญชี..."
+                    value={newPayForm.bankAcc}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    onChange={(e) =>
+                      setNewPayForm({
+                        ...newPayForm,
+                        bankAcc: e.target.value.replace(/\D/g, ""),
+                      })
+                    }
+                    className="flex rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none w-full"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="mb-2 text-xs font-bold text-gray-400">
+              ปัดซ้ายเพื่อลบสมาชิก ({members.length})
+            </p>
+            {members.map((member) => {
+              const balance =
+                balances.find((b) => b.member === member)?.balance || 0;
+              const hasDebt = Math.abs(balance) > 0.01;
+              const details = memberDetails[member] || {};
+              return (
+                <MemberItem
+                  key={member}
+                  setShowNewPayForm={setShowNewPayForm}
+                  member={member}
+                  hasDebt={hasDebt}
+                  details={details}
+                  onRemove={onRemove}
+                  onUpdateDetails={onUpdateDetails}
+                  swipedMember={swipedMember}
+                  setSwipedMember={setSwipedMember}
+                  isEditing={editingMember === member}
+                  isPending={pendingMemberAction === member}
+                  onEdit={() =>
+                    setEditingMember(editingMember === member ? null : member)
+                  }
+                />
+              );
+            })}
+          </div>
+        </div>
+    </ModalShell>
+  );
+}
+
+
+===== ./src/components/ModalShell.jsx =====
+
+export default function ModalShell({
+  children,
+  onClose,
+  backdropClassName = "bg-gray-950/70",
+  panelClassName = "",
+}) {
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm ${backdropClassName}`}
+      style={{ touchAction: "pan-x pan-y" }}
+      onClick={onClose}
+    >
+      <div
+        className={`flex w-full flex-col overflow-hidden rounded-xl border border-gray-700 bg-gray-900 text-gray-100 shadow-2xl ${panelClassName}`}
+        style={{ touchAction: "pan-x pan-y" }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+
+===== ./src/components/PaymentModal.jsx =====
+
+import { CheckCircle, Copy } from "lucide-react";
+import { useState } from "react";
+import { BANKS, SWAL_THEME } from "../data/constants";
+import {
+  formatMoney,
+  normalizePromptPay,
+  openBankApp,
+  validatePromptPay,
+} from "../utils/trip";
+import Swal from "sweetalert2";
+import { dynaura } from "dynaura";
+import ModalShell from "./ModalShell";
+
+export default function PaymentModal({
+  from,
+  to,
+  amount,
+  memberDetails,
+  onUpdateDetails,
+  onClose,
+  onConfirm,
+  isSubmitting,
+}) {
+  const details = memberDetails[to] || {};
+  // const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
+  const [tab, setTab] = useState("qr");
+  const normalizedPromptPay = normalizePromptPay(details.promptpay);
+  const [form, setForm] = useState({
+    promptpay: normalizedPromptPay,
+    bankId: details.bankId || "kbank",
+    bankAcc: details.bankAcc || "",
+  });
+
+  const selectedBank = BANKS.find(
+    (b) => b.id === (details.bankId || form.bankId),
+  );
+
+  const handleSaveDetails = () => {
+    if (tab === "qr") {
+      const validation = validatePromptPay(form.promptpay);
+      if (!validation.valid) {
+        dynaura.warning({
+          title: "เลขพร้อมเพย์ไม่ถูกต้อง",
+          description: validation.message,
+          duration: 4000,
+        });
+        return;
+      }
+      if (!validation.normalized) {
+        dynaura.warning({
+          title: "กรุณากรอกเลขพร้อมเพย์",
+          description: "เว้นวรรคหรือใส่เครื่องหมาย - จะถูกกรองออกอัตโนมัติ",
+          duration: 4000,
+        });
+        return;
+      }
+      onUpdateDetails(to, { ...form, promptpay: validation.normalized });
+    } else {
+      onUpdateDetails(to, form);
+    }
+  };
+
+  const handleConfirmPay = async () => {
+    if (isSubmitting) return;
+    const result = await Swal.fire({
+      ...SWAL_THEME,
+      title: `ยืนยันการโอนเงิน`,
+      html: `คุณโอนเงิน <strong class="text-2xl text-lime-400">฿${formatMoney(amount)}</strong> ให้ ${to} เรียบร้อยแล้วใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: "โอนเรียบร้อย",
+      cancelButtonText: "ยกเลิก",
+    });
+    if (result.isConfirmed) {
+      onConfirm(from, to, amount);
+    }
+  };
+
+  return (
+    <ModalShell
+      backdropClassName="bg-gray-950/80"
+      panelClassName="max-w-sm"
+      onClose={onClose}
+    >
+        <div className="bg-gray-800 p-4 text-center">
+          <p className="text-sm text-gray-400">ชำระเงินให้</p>
+          <h2 className="text-xl font-bold text-lime-400">{to}</h2>
+          <p className="mt-1 text-3xl font-bold text-white">
+            ฿{formatMoney(amount)}
+          </p>
+        </div>
+
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setTab("qr")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "qr" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            สแกนคิวอาร์
+          </button>
+          <button
+            onClick={() => setTab("bank")}
+            className={`flex-1 py-3 text-sm font-medium transition ${tab === "bank" ? "border-b-2 border-lime-400 text-lime-400" : "text-gray-500 hover:text-gray-300"}`}
+          >
+            คัดลอกบัญชี
+          </button>
+        </div>
+
+        <div className="p-5">
+          {tab === "qr" && (
+            <div className="flex flex-col items-center">
+              {normalizedPromptPay ? (
+                <>
+                  <div className="mb-4 overflow-hidden rounded-lg bg-white p-2">
+                    <img
+                      src={`https://promptpay.io/${normalizedPromptPay}/${amount}.png`}
+                      alt="PromptPay QR"
+                      className="h-48 w-48 object-contain"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    พร้อมเพย์:{" "}
+                    <span className="font-mono text-gray-200">
+                      {normalizedPromptPay}
+                    </span>
+                  </p>
+                </>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลพร้อมเพย์ของ {to}
+                  </p>
+                  <input
+                    type="tel"
+                    value={form.promptpay}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
+                      })
+                    }
+                    placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกและสร้าง QR
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === "bank" && (
+            <div className="flex flex-col">
+              {details.bankAcc ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
+                    <p className="text-xs text-gray-400">
+                      {selectedBank?.name}
+                    </p>
+                    <p className="font-mono text-lg tracking-wider text-gray-100">
+                      {details.bankAcc}
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      onClick={() =>
+                        openBankApp(
+                          details.bankAcc,
+                          selectedBank?.scheme,
+                          "คัดลอกเลขบัญชีแล้ว",
+                        )
+                      }
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm text-gray-300 transition hover:bg-gray-700"
+                    >
+                      <Copy size={16} /> ก๊อปเลขบัญชีและเปิดแอปธนาคาร
+                    </button>
+                  </div>
+                  <p className="text-center text-[10px] text-gray-500">
+                    *เมื่อกดปุ่ม ระบบจะพยายามเปิดแอปธนาคารให้อัตโนมัติ
+                  </p>
+                </div>
+              ) : (
+                <div className="w-full space-y-3">
+                  <p className="text-center text-sm text-gray-400">
+                    ไม่มีข้อมูลบัญชีของ {to}
+                  </p>
+                  <select
+                    value={form.bankId}
+                    onChange={(e) =>
+                      setForm({ ...form, bankId: e.target.value })
+                    }
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                  >
+                    {BANKS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={form.bankAcc}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    onChange={(e) =>
+                      setForm({ ...form, bankAcc: e.target.value.replace(/\D/g, "") })
+                    }
+                    placeholder="เลขบัญชี..."
+                    className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveDetails}
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                  >
+                    บันทึกข้อมูลบัญชี
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 flex gap-2">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm font-bold text-gray-300 hover:bg-gray-700 transition"
+            >
+              ปิดหน้าต่าง
+            </button>
+            <button
+              onClick={handleConfirmPay}
+              disabled={isSubmitting}
+              className={`flex-2 flex items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
+                isSubmitting
+                  ? "cursor-not-allowed bg-gray-500 shimmer"
+                  : "bg-lime-400 hover:bg-lime-300"
+              }`}
+            >
+              <CheckCircle size={16} /> {isSubmitting ? "กำลังบันทึก..." : "ยืนยันการโอน"}
+            </button>
+          </div>
+        </div>
+    </ModalShell>
+  );
+}
+
+
+===== ./src/components/SettlementSection.jsx =====
+
+import { ArrowRight, CheckCircle, History, Users } from "lucide-react";
+import { formatMoney } from "../utils/trip";
+
+export default function SettlementSection({
+  settlements,
+  onOpenPayment,
+  onOpenHistory,
+  pendingSettlement,
+}) {
+  return (
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-bold text-lime-400">
+          <Users size={20} /> สรุปเคลียร์เงิน
+        </h2>
+        <button
+          type="button"
+          onClick={onOpenHistory}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/15 text-amber-400 transition hover:bg-amber-500 hover:text-gray-950"
+          title="ประวัติการชำระ"
+          aria-label="ประวัติการชำระ"
+        >
+          <History size={18} />
+        </button>
+      </div>
+      <div className="space-y-2">
+        {settlements.transfers.length === 0 ? (
+          <p className="py-2 text-center text-sm text-gray-400">
+            ทุกคนเคลียร์เงินครบแล้ว
+          </p>
+        ) : (
+          settlements.transfers.map((transfer) => (
+            <div
+              key={`${transfer.from}-${transfer.to}`}
+              className="rounded-lg border border-lime-900 bg-gray-800 p-3"
+            >
+              <div className="mb-2 flex justify-between p-2">
+                <div className="flex gap-2 font-medium">
+                  <span className="text-gray-100">{transfer.from}</span>
+                  <ArrowRight size={16} className="text-gray-400" />
+                  <span className="text-gray-100">{transfer.to}</span>
+                </div>
+                <div className="font-bold text-lime-400">
+                  ฿{formatMoney(transfer.amount)}
+                </div>
+              </div>
+              <button
+                onClick={() => onOpenPayment(transfer)}
+                disabled={Boolean(pendingSettlement)}
+                className={`m-auto flex w-10/12 items-center justify-center gap-1 rounded py-2 text-xs text-gray-950 shadow-sm transition ${
+                  pendingSettlement
+                    ? "cursor-not-allowed bg-gray-500 shimmer"
+                    : "bg-lime-500 hover:bg-lime-300"
+                }`}
+              >
+                <CheckCircle size={14} /> เคลียร์ยอดนี้
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+
+===== ./src/components/SplitModal.jsx =====
+
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatMoney } from "../utils/trip";
+import ModalShell from "./ModalShell";
+
+export default function SplitModal({ expense, members, onClose, onSave }) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedSplit, setSelectedSplit] = useState(() => {
+    const rawSplit =
+      expense?.split_between?.length > 0
+        ? expense.split_between
+        : [expense.paid_by];
+    return rawSplit.filter((m) => members.includes(m));
+  });
+
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
+  const handleToggle = (member) =>
+    setSelectedSplit((prev) =>
+      prev.includes(member)
+        ? prev.filter((m) => m !== member)
+        : [...prev, member],
+    );
+  const isAllSelected =
+    selectedSplit.length === members.length && members.length > 0;
+  const handleToggleAll = () =>
+    isAllSelected ? setSelectedSplit([]) : setSelectedSplit([...members]);
+
+  return (
+    <ModalShell
+      backdropClassName="bg-gray-950/70"
+      panelClassName="max-w-sm"
+      onClose={onClose}
+    >
+        <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
+          <div>
+            <h3 className="font-bold text-base text-gray-100">
+              ระบุผู้หารรายการ
+            </h3>
+            <p className="text-xs text-lime-400 font-medium">
+              {expense.item_name} (฿{formatMoney(expense.amount)})
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-200"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหาร</p>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                onChange={handleToggleAll}
+                className="split-check h-3.5 w-3.5 cursor-pointer"
+              />
+              <span>เลือกทุกคน</span>
+            </label>
+          </div>
+          <div className="mb-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+            {members.map((member) => (
+              <label
+                key={member}
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 p-3 transition hover:bg-gray-750"
+              >
+                <span className="font-medium text-gray-100 text-sm">
+                  {member}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={selectedSplit.includes(member)}
+                  onChange={() => handleToggle(member)}
+                  className="split-check h-4 w-4 cursor-pointer"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-2.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-700"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                const success = await onSave(expense.id, selectedSplit);
+                setIsSaving(false);
+                if (success) onClose();
+              }}
+              className={`flex-1 rounded-lg py-2.5 text-xs font-bold text-gray-950 transition ${
+                isSaving
+                  ? "cursor-not-allowed bg-gray-500 shimmer"
+                  : "bg-lime-400 hover:bg-lime-300"
+              }`}
+            >
+              {isSaving ? "กำลังบันทึก..." : "ตกลง"}
+            </button>
+          </div>
+        </div>
+    </ModalShell>
+  );
+}
+
+
+===== ./src/components/ThemeMenu.jsx =====
+
+import { Palette } from "lucide-react";
+import { useState } from "react";
+import { useTheme } from "../context/ThemeContext";
+
+const THEMES = [
+  { id: "dark", color: "#111827", label: "ธีมเขียวดำ", transform: "translate(-8px, -132px)" },
+  { id: "light", color: "#55423d", label: "ธีม Brown", transform: "translate(-74px, -112px)" },
+  { id: "purple", color: "#ff8ba7", label: "ธีมครีม-คอรัล", transform: "translate(-126px, -70px)" },
+  { id: "pink", color: "#fec7d7", label: "ธีมชมพู", transform: "translate(-166px, -10px)" },
+];
+
+export default function ThemeMenu() {
+  const [open, setOpen] = useState(false);
+  const { setTheme } = useTheme();
+
+  return (
+    <div
+      className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 h-14 w-14"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {THEMES.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => {
+            setTheme(option.id);
+            setOpen(false);
+          }}
+          className="absolute bottom-0 right-0 h-11 w-11 rounded-full border-2 border-white/80 shadow-lg transition-all duration-300"
+          style={{
+            backgroundColor: option.color,
+            transform: open ? option.transform : "translate(0, 0) scale(0)",
+            opacity: open ? 1 : 0,
+            pointerEvents: open ? "auto" : "none",
+          }}
+          title={option.label}
+          aria-label={option.label}
+        />
+      ))}
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="absolute bottom-0 right-0 flex h-14 w-14 items-center justify-center rounded-full border border-lime-400/40 bg-lime-400 text-gray-950 shadow-xl transition-all duration-200 hover:scale-105"
+        aria-label="เปลี่ยนธีม"
+      >
+        <Palette size={24} />
+      </button>
+    </div>
+  );
+}
+
+
+===== ./src/components/TripHeader.jsx =====
+
+import { Check, RefreshCw, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { formatMoney } from "../utils/trip";
+
+export default function TripHeader({
+  totalExpense,
+  isSyncing,
+  onRefresh,
+  MEMBERS,
+  onOpenMemberModal,
+}) {
+  const [syncStatus, setSyncStatus] = useState("idle");
+  useEffect(() => {
+    if (isSyncing) setSyncStatus("syncing");
+    else if (!isSyncing && syncStatus === "syncing") {
+      setSyncStatus("success");
+      setTimeout(() => setSyncStatus("idle"), 1500);
+    }
+  }, [isSyncing, syncStatus]);
+
+  return (
+    <header
+      className="sticky top-0 z-30 bg-gray-900 px-4 pb-4 text-gray-100 shadow-md pt-[calc(env(safe-area-inset-top,0px)+1rem)]"
+    >
+      <div className="relative mx-auto max-w-md text-center">
+        <button
+          onClick={onOpenMemberModal}
+          className="absolute left-0 top-5 flex h-10 items-center justify-center gap-1.5 rounded-full bg-gray-800 px-3 transition hover:bg-gray-700"
+        >
+          <Users size={20} className="text-lime-400" />
+          <span className="text-base font-bold text-gray-300">
+            {MEMBERS.length}
+          </span>
+        </button>
+        <button
+          onClick={onRefresh}
+          disabled={syncStatus === "syncing"}
+          className="absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+        >
+          {syncStatus === "syncing" ? (
+            <RefreshCw size={26} className="animate-spin text-gray-400" />
+          ) : syncStatus === "success" ? (
+            <Check size={26} className="text-lime-400" />
+          ) : (
+            <RefreshCw size={26} className="text-gray-300" />
+          )}
+        </button>
+        <p className="mt-1 text-sm font-light opacity-80">
+          ยอดรวมค่าใช้จ่ายทั้งทริป
+        </p>
+        <h1 className="my-1 text-4xl font-bold">
+          ฿{formatMoney(totalExpense)}
+        </h1>
+      </div>
+    </header>
+  );
+}
+
+
+===== ./src/context/ThemeContext.jsx =====
+
+import { createContext, useContext, useEffect, useState } from "react";
+
+const ThemeContext = createContext(null);
+
+export function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("tripTheme") || "pink",
+  );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("tripTheme", theme);
+
+    const themeColors = {
+      dark: "#111827",
+      pink: "#fec7d7",
+      light: "#55423d",
+      purple: "#faeee7",
+    };
+    const themeColor = themeColors[theme] || themeColors.dark;
+
+    let themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (!themeMeta) {
+      themeMeta = document.createElement("meta");
+      themeMeta.name = "theme-color";
+      document.head.appendChild(themeMeta);
+    }
+    themeMeta.content = themeColor;
+
+    const statusBarMeta = document.querySelector(
+      'meta[name="apple-mobile-web-app-status-bar-style"]',
+    );
+    if (statusBarMeta) {
+      statusBarMeta.content = theme === "dark" ? "black" : "default";
+    }
+  }, [theme]);
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  if (!context) throw new Error("useTheme must be used within ThemeProvider");
+  return context;
+}
+
+
+===== ./src/data/constants.js =====
+
+export const CATEGORIES = [
+  "ค่าอาหาร",
+  "ค่ารถ",
+  "ค่าน้ำมัน",
+  "ค่าที่พัก",
+  "ค่าเที่ยว",
+  "อื่นๆ",
+];
+
+export const HISTORY_CATEGORY = "ประวัติการโอน";
+export const DEFAULT_MEMBERS = ["หมิว", "มาย", "เมย์", "พี่เบส"];
+
+export const BANKS = [
+  { id: "kbank", name: "กสิกรไทย (KBank)", scheme: "kplus://" },
+  { id: "scb", name: "ไทยพาณิชย์ (SCB)", scheme: "scbeasy://" },
+  { id: "ktb", name: "กรุงไทย (KTB)", scheme: "ktbnext://" },
+  { id: "gsb", name: "ออมสิน (GSB)", scheme: "mymobaz://" },
+  { id: "other", name: "อื่นๆ (ไม่เปิดแอป)", scheme: "" },
+];
+
+export const SWAL_THEME = {
+  background: "#111827",
+  color: "#F3F4F6",
+  buttonsStyling: false,
+  customClass: {
+    popup: "border border-gray-700 rounded-xl shadow-2xl p-6",
+    title: "text-gray-100 font-bold text-lg",
+    htmlContainer: "text-gray-300 text-sm mt-1",
+    confirmButton:
+      "bg-lime-400 text-gray-950 font-bold px-5 py-2.5 rounded-lg hover:bg-lime-300 transition text-sm cursor-pointer",
+    cancelButton:
+      "bg-gray-800 text-gray-300 font-bold px-5 py-2.5 rounded-lg hover:bg-gray-700 transition text-sm cursor-pointer ml-3",
+  },
+};
+
+
+===== ./src/hooks/usePinchGuard.js =====
+
+import { useEffect } from "react";
+
+export default function usePinchGuard() {
+  useEffect(() => {
+    const preventPinchTouch = (event) => {
+      if (event.touches?.length > 1) event.preventDefault();
+    };
+    const preventSafariGesture = (event) => event.preventDefault();
+
+    document.addEventListener("touchmove", preventPinchTouch, { passive: false });
+    document.addEventListener("gesturestart", preventSafariGesture, {
+      passive: false,
+    });
+    document.addEventListener("gesturechange", preventSafariGesture, {
+      passive: false,
+    });
+
+    return () => {
+      document.removeEventListener("touchmove", preventPinchTouch);
+      document.removeEventListener("gesturestart", preventSafariGesture);
+      document.removeEventListener("gesturechange", preventSafariGesture);
+    };
+  }, []);
+}
+
+
+===== ./src/hooks/useSettlements.js =====
+
+import { useMemo } from "react";
+import { HISTORY_CATEGORY } from "../data/constants";
+
+export default function useSettlements(expenses, members) {
+  return useMemo(() => {
+    const regularExpenses = expenses.filter(
+      (expense) => expense.category !== HISTORY_CATEGORY,
+    );
+    const historyExpenses = expenses.filter(
+      (expense) => expense.category === HISTORY_CATEGORY,
+    );
+
+    const balances = members.map((member) => ({ member, balance: 0 }));
+
+    regularExpenses.forEach((expense) => {
+      const payer = balances.find((balance) => balance.member === expense.paid_by);
+      if (payer) payer.balance += Number(expense.amount);
+
+      const configuredSplit = Array.isArray(expense.split_between)
+        ? expense.split_between
+        : [];
+      const validSplit = configuredSplit.filter((member) =>
+        members.includes(member),
+      );
+      const splitters =
+        validSplit.length > 0
+          ? validSplit
+          : members.includes(expense.paid_by)
+            ? [expense.paid_by]
+            : [members[0]];
+
+      const costPerPerson = Number(expense.amount) / splitters.length;
+      splitters.forEach((member) => {
+        const debtor = balances.find((balance) => balance.member === member);
+        if (debtor) debtor.balance -= costPerPerson;
+      });
+    });
+
+    historyExpenses.forEach((expense) => {
+      const payer = balances.find((balance) => balance.member === expense.paid_by);
+      if (payer) payer.balance += Number(expense.amount);
+      members.forEach((member) => {
+        if (expense.item_name.includes(`-> ${member}`)) {
+          const receiver = balances.find(
+            (balance) => balance.member === member,
+          );
+          if (receiver) receiver.balance -= Number(expense.amount);
+        }
+      });
+    });
+
+    const debtors = balances
+      .filter((balance) => balance.balance < -0.01)
+      .map((balance) => ({ ...balance }));
+    const creditors = balances
+      .filter((balance) => balance.balance > 0.01)
+      .map((balance) => ({ ...balance }));
+    const transfers = [];
+    let debtorIndex = 0;
+    let creditorIndex = 0;
+
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex];
+      const creditor = creditors[creditorIndex];
+      const amount = Math.min(Math.abs(debtor.balance), creditor.balance);
+      if (amount > 0.01) {
+        transfers.push({ from: debtor.member, to: creditor.member, amount });
+      }
+      debtor.balance += amount;
+      creditor.balance -= amount;
+      if (Math.abs(debtor.balance) < 0.01) debtorIndex++;
+      if (creditor.balance < 0.01) creditorIndex++;
+    }
+
+    return { balances, transfers };
+  }, [expenses, members]);
+}
+
+
+===== ./src/hooks/useSwipeDrag.js =====
+
+import { useRef, useState } from "react";
+
+export default function useSwipeDrag({
+  id,
+  isOpen,
+  setOpen,
+  canDrag = true,
+}) {
+  const [drag, setDrag] = useState({
+    active: false,
+    startX: 0,
+    startY: 0,
+    offset: 0,
+    scrolling: false,
+  });
+  const isMouse = useRef(false);
+  const suppressClick = useRef(false);
+
+  let currentOffset = isOpen ? -70 : 0;
+  if (drag.active) {
+    currentOffset = (isOpen ? -70 : 0) + drag.offset;
+    currentOffset = Math.max(-90, Math.min(0, currentOffset));
+  }
+
+  const startDrag = (clientX, clientY) => {
+    if (!canDrag) return;
+    setDrag({
+      active: true,
+      startX: clientX,
+      startY: clientY,
+      offset: 0,
+      scrolling: false,
+    });
+    if (!isOpen) setOpen(null);
+  };
+
+  const moveDrag = (clientX, clientY) => {
+    if (!drag.active) return;
+    const diffX = clientX - drag.startX;
+    const diffY = Math.abs(clientY - drag.startY);
+
+    if (!drag.scrolling && diffY > 15 && Math.abs(diffX) < 15) {
+      setDrag((previous) => ({ ...previous, scrolling: true }));
+      return;
+    }
+    if (!drag.scrolling) {
+      setDrag((previous) => ({ ...previous, offset: diffX }));
+    }
+  };
+
+  const endDrag = () => {
+    if (!drag.active) return;
+    suppressClick.current = Math.abs(drag.offset) > 5;
+    isMouse.current = false;
+
+    if (!drag.scrolling) {
+      const baseOffset = isOpen ? -70 : 0;
+      if (baseOffset + drag.offset < -35) setOpen(id);
+      else setOpen(null);
+    }
+
+    setDrag({
+      active: false,
+      startX: 0,
+      startY: 0,
+      offset: 0,
+      scrolling: false,
+    });
+  };
+
+  const touchHandlers = {
+    onTouchStart: (event) =>
+      startDrag(
+        event.targetTouches[0].clientX,
+        event.targetTouches[0].clientY,
+      ),
+    onTouchMove: (event) =>
+      moveDrag(
+        event.targetTouches[0].clientX,
+        event.targetTouches[0].clientY,
+      ),
+    onTouchEnd: endDrag,
+  };
+
+  const mouseHandlers = {
+    onMouseDown: (event) => {
+      isMouse.current = true;
+      startDrag(event.clientX, event.clientY);
+    },
+    onMouseMove: (event) => {
+      if (isMouse.current) moveDrag(event.clientX, event.clientY);
+    },
+    onMouseUp: () => {
+      if (isMouse.current) endDrag();
+    },
+    onMouseLeave: () => {
+      if (isMouse.current) endDrag();
+    },
+  };
+
+  const consumeSuppressedClick = () => {
+    if (!suppressClick.current) return false;
+    suppressClick.current = false;
+    return true;
+  };
+
+  return {
+    drag,
+    currentOffset,
+    isSwiped: currentOffset < -5,
+    consumeSuppressedClick,
+    touchHandlers,
+    mouseHandlers,
+  };
+}
+
+
+===== ./src/hooks/useTripData.js =====
+
+import { useCallback, useEffect, useState } from "react";
+import { getStoredMembers } from "../utils/trip";
+import { supabase } from "../services/supabase";
+
+export default function useTripData(onMembersUpdated) {
+  const [members, setMembers] = useState(getStoredMembers);
+  const [expenses, setExpenses] = useState([]);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const refreshMembers = useCallback(async () => {
+    if (!navigator.onLine) return;
+
+    const { data } = await supabase
+      .from("trip_members")
+      .select("name")
+      .order("created_at", { ascending: true });
+
+    if (data && data.length > 0) {
+      const fetchedMembers = data.map((member) => member.name);
+      setMembers(fetchedMembers);
+      localStorage.setItem("tripMembers", JSON.stringify(fetchedMembers));
+      onMembersUpdated(fetchedMembers);
+    }
+  }, [onMembersUpdated]);
+
+  const refreshExpenses = useCallback(async () => {
+    if (!navigator.onLine) {
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      if (cachedData) setExpenses(JSON.parse(cachedData));
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase
+        .from("trip_expenses")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        setExpenses(data);
+        localStorage.setItem("tripExpensesCache", JSON.stringify(data));
+      }
+    } catch {
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      if (cachedData) setExpenses(JSON.parse(cachedData));
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  }, []);
+
+  useEffect(() => {
+    setIsOffline(!navigator.onLine);
+
+    const handleOnline = () => {
+      setIsOffline(false);
+      Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
+        setLoading(false),
+      );
+    };
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
+      setLoading(false),
+    );
+
+    const expenseSub = supabase
+      .channel("trip_expenses_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "trip_expenses" },
+        refreshExpenses,
+      )
+      .subscribe();
+    const memberSub = supabase
+      .channel("trip_members_changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "trip_members" },
+        refreshMembers,
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      supabase.removeChannel(expenseSub);
+      supabase.removeChannel(memberSub);
+    };
+  }, [refreshExpenses, refreshMembers]);
+
+  return {
+    members,
+    setMembers,
+    expenses,
+    isOffline,
+    loading,
+    isSyncing,
+    refreshMembers,
+    refreshExpenses,
+  };
+}
+
+
+===== ./src/index.css =====
+
+@import "tailwindcss";
+
+html[data-theme="light"],
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="purple"],
+[data-theme="purple"] {
+  color-scheme: light;
+}
+
+html[data-theme="pink"],
+[data-theme="pink"] {
+  color-scheme: light;
+  --theme-page: #fec7d7;
+  --theme-base: #fec7d7;
+  --theme-950: #fec7d7;
+  --theme-900: #f9f8fc;
+  --theme-800: #f9f8fc;
+  --theme-700: #0e172c;
+  --theme-600: #d9d4e7;
+  --theme-text: #0e172c;
+  --theme-text-strong: #0e172c;
+  --theme-text-muted: #270e2c;
+  --theme-accent: #a786df;
+  --theme-accent-hover: #9274cf;
+  --theme-accent-soft: #d9d4e7;
+}
+
+
+html[data-theme="light"],
+[data-theme="light"] {
+  --theme-page: #55423d;
+  --theme-base: #55423d;
+  --theme-950: #55423d;
+  --theme-900: #fff3ec;
+  --theme-800: #fff3ec;
+  --theme-700: #140d0b;
+  --theme-600: #ffc0ad;
+  --theme-text: #fff3ec;
+  --theme-text-strong: #000000;
+  --theme-text-muted: #d45d19;
+  --theme-accent: #eb3f0b;
+  --theme-accent-hover: #e78fb3;
+  --theme-accent-soft: #9656a1;
+}
+
+
+html[data-theme="purple"],
+[data-theme="purple"] {
+  --theme-page: #faeee7;
+  --theme-base: #faeee7;
+  --theme-950: #faeee7;
+  --theme-900: #fffffe;
+  --theme-800: #fffffe;
+  --theme-700: #33272a;
+  --theme-600: #ffc6c7;
+  --theme-text: #594a4e;
+  --theme-text-strong: #33272a;
+  --theme-text-muted: #594a4e;
+  --theme-accent: #ff8ba7;
+  --theme-accent-hover: #ff8ba7;
+  --theme-accent-soft: #c3f0ca;
+}
+
+html[data-theme="light"] body,
+html[data-theme="purple"] body,
+html[data-theme="pink"] body {
+  background-color: var(--theme-page) !important;
+  color: var(--theme-text) !important;
+}
+
+[data-theme="light"] .bg-gray-950,
+[data-theme="purple"] .bg-gray-950,
+[data-theme="pink"] .bg-gray-950 {
+  background-color: var(--theme-950) !important;
+}
+
+[data-theme="light"] .bg-gray-900,
+[data-theme="purple"] .bg-gray-900,
+[data-theme="pink"] .bg-gray-900 {
+  background-color: var(--theme-900) !important;
+}
+
+[data-theme="light"] .bg-gray-800,
+[data-theme="purple"] .bg-gray-800,
+[data-theme="pink"] .bg-gray-800,
+[data-theme="light"] .bg-gray-800\/30,
+[data-theme="purple"] .bg-gray-800\/30,
+[data-theme="pink"] .bg-gray-800\/30,
+[data-theme="light"] .bg-gray-800\/50,
+[data-theme="purple"] .bg-gray-800\/50,
+[data-theme="pink"] .bg-gray-800\/50,
+[data-theme="light"] .bg-gray-800\/60,
+[data-theme="purple"] .bg-gray-800\/60,
+[data-theme="pink"] .bg-gray-800\/60 {
+  background-color: var(--theme-800) !important;
+}
+
+[data-theme="light"] .bg-gray-700,
+[data-theme="purple"] .bg-gray-700,
+[data-theme="pink"] .bg-gray-700,
+[data-theme="light"] .bg-gray-700\/30,
+[data-theme="purple"] .bg-gray-700\/30,
+[data-theme="pink"] .bg-gray-700\/30 {
+  background-color: var(--theme-700) !important;
+}
+
+[data-theme="light"] .bg-gray-600,
+[data-theme="purple"] .bg-gray-600,
+[data-theme="pink"] .bg-gray-600 {
+  background-color: var(--theme-600) !important;
+}
+
+[data-theme="light"] .border-gray-700,
+[data-theme="purple"] .border-gray-700,
+[data-theme="pink"] .border-gray-700,
+[data-theme="light"] .border-gray-800,
+[data-theme="purple"] .border-gray-800,
+[data-theme="pink"] .border-gray-800,
+[data-theme="light"] .border-gray-600,
+[data-theme="purple"] .border-gray-600,
+[data-theme="pink"] .border-gray-600 {
+  border-color: var(--theme-700) !important;
+}
+
+[data-theme="light"] .text-gray-100,
+[data-theme="purple"] .text-gray-100,
+[data-theme="pink"] .text-gray-100,
+[data-theme="light"] .text-white,
+[data-theme="purple"] .text-white,
+[data-theme="pink"] .text-white {
+  color: var(--theme-text-strong) !important;
+}
+
+[data-theme="light"] .text-gray-300,
+[data-theme="purple"] .text-gray-300,
+[data-theme="pink"] .text-gray-300,
+[data-theme="light"] .text-gray-400,
+[data-theme="purple"] .text-gray-400,
+[data-theme="pink"] .text-gray-400,
+[data-theme="light"] .text-gray-500,
+[data-theme="purple"] .text-gray-500,
+[data-theme="pink"] .text-gray-500 {
+  color: var(--theme-text-muted) !important;
+}
+
+[data-theme="light"] .text-lime-400,
+[data-theme="purple"] .text-lime-400,
+[data-theme="pink"] .text-lime-400 {
+  color: var(--theme-accent) !important;
+}
+
+[data-theme="light"] .bg-lime-400,
+[data-theme="purple"] .bg-lime-400,
+[data-theme="pink"] .bg-lime-400,
+[data-theme="light"] .bg-lime-500,
+[data-theme="purple"] .bg-lime-500,
+[data-theme="pink"] .bg-lime-500 {
+  background-color: var(--theme-accent) !important;
+}
+
+[data-theme="light"] .hover\:bg-lime-300:hover,
+[data-theme="purple"] .hover\:bg-lime-300:hover,
+[data-theme="pink"] .hover\:bg-lime-300:hover,
+[data-theme="light"] .hover\:bg-lime-400:hover,
+[data-theme="purple"] .hover\:bg-lime-400:hover,
+[data-theme="pink"] .hover\:bg-lime-400:hover,
+[data-theme="light"] .hover\:bg-lime-500:hover,
+[data-theme="purple"] .hover\:bg-lime-500:hover,
+[data-theme="pink"] .hover\:bg-lime-500:hover {
+  background-color: var(--theme-accent-hover) !important;
+}
+
+[data-theme="light"] .hover\:bg-gray-700:hover,
+[data-theme="purple"] .hover\:bg-gray-700:hover,
+[data-theme="pink"] .hover\:bg-gray-700:hover,
+[data-theme="light"] .hover\:bg-gray-600:hover,
+[data-theme="purple"] .hover\:bg-gray-600:hover,
+[data-theme="pink"] .hover\:bg-gray-600:hover {
+  background-color: var(--theme-700) !important;
+}
+
+[data-theme="light"] .hover\:text-lime-400:hover,
+[data-theme="purple"] .hover\:text-lime-400:hover,
+[data-theme="pink"] .hover\:text-lime-400:hover,
+[data-theme="light"] .hover\:text-lime-300:hover,
+[data-theme="purple"] .hover\:text-lime-300:hover,
+[data-theme="pink"] .hover\:text-lime-300:hover {
+  color: var(--theme-accent-hover) !important;
+}
+
+[data-theme="light"] .text-sky-400,
+[data-theme="purple"] .text-sky-400,
+[data-theme="pink"] .text-sky-400,
+[data-theme="light"] .text-sky-300,
+[data-theme="purple"] .text-sky-300,
+[data-theme="pink"] .text-sky-300 {
+  color: var(--theme-accent) !important;
+}
+
+[data-theme="light"] .bg-sky-500\/10,
+[data-theme="purple"] .bg-sky-500\/10,
+[data-theme="pink"] .bg-sky-500\/10 {
+  background-color: var(--theme-accent-soft) !important;
+}
+
+[data-theme="light"] .border-sky-500\/30,
+[data-theme="purple"] .border-sky-500\/30,
+[data-theme="pink"] .border-sky-500\/30 {
+  border-color: var(--theme-accent) !important;
+}
+
+[data-theme="light"] .placeholder\:text-gray-400::placeholder,
+[data-theme="purple"] .placeholder\:text-gray-400::placeholder,
+[data-theme="pink"] .placeholder\:text-gray-400::placeholder {
+  color: var(--theme-text-muted) !important;
+}
+
+/* ล็อกการถ่างนิ้วซูมด้วยมือ (Pinch-to-zoom) บน iOS Safari */
+html, body, #root {
+  touch-action: pan-x pan-y;
+}
+
+/* ล็อคสีพื้นหลังหลักเป็นสีดำ และปิดอาการ Overscroll Bounce (ยืดจอเห็นแถบขาว) */
+html, body {
+  background-color: var(--theme-page, #000000) !important;
+  color: #f3f4f6;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
+.split-check {
+  accent-color: #a3e635;
+}
+
+[data-theme="light"] .split-check {
+  accent-color: #3f8f67;
+}
+
+[data-theme="purple"] .split-check {
+  accent-color: #7c64a6;
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.38),
+    transparent
+  );
+  animation: shimmer 1.1s infinite;
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+[data-theme="light"] .swal2-popup,
+[data-theme="purple"] .swal2-popup {
+  background: var(--theme-900) !important;
+  color: var(--theme-text-strong) !important;
+  border: 1px solid var(--theme-700) !important;
+}
+
+[data-theme="pink"] .swal2-popup {
+  background: var(--theme-900) !important;
+  color: var(--theme-text-strong) !important;
+  border: 2px solid var(--theme-text-strong) !important;
+}
+
+[data-theme="pink"] .swal2-title,
+[data-theme="pink"] .swal2-html-container {
+  color: var(--theme-text-strong) !important;
+}
+
+[data-theme="pink"] .bg-lime-400,
+[data-theme="pink"] .bg-lime-500 {
+  background-color: #0e172c !important;
+}
+
+[data-theme="pink"] .text-gray-950 {
+  color: #fffffe !important;
+}
+
+[data-theme="light"] .bg-lime-400,
+[data-theme="light"] .bg-lime-500 {
+  background-color: #ffc0ad !important;
+}
+
+[data-theme="light"] .text-lime-400 {
+  color: #e78fb3 !important;
+}
+
+[data-theme="light"] .text-gray-950 {
+  color: #271c19 !important;
+}
+
+[data-theme="light"] .rounded-xl.border,
+[data-theme="light"] .rounded-lg.border,
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] button {
+  border-width: 2px;
+  border-color: #140d0b;
+}
+
+[data-theme="purple"] .text-gray-950 {
+  color: #33272a !important;
+}
+
+[data-theme="purple"] .rounded-xl.border,
+[data-theme="purple"] .rounded-lg.border,
+[data-theme="purple"] input,
+[data-theme="purple"] select,
+[data-theme="purple"] button,
+[data-theme="pink"] .rounded-xl.border,
+[data-theme="pink"] .rounded-lg.border,
+[data-theme="pink"] input,
+[data-theme="pink"] select,
+[data-theme="pink"] button {
+  border-width: 2px;
+  border-color: var(--theme-text-strong);
+}
+
+[data-theme="light"] .swal2-title,
+[data-theme="purple"] .swal2-title,
+[data-theme="light"] .swal2-html-container,
+[data-theme="purple"] .swal2-html-container {
+  color: var(--theme-text-strong) !important;
+}
+
+[data-theme="light"] .expense-date-header,
+[data-theme="purple"] .expense-date-header,
+[data-theme="pink"] .expense-date-header {
+  background-color: #d1d5db !important;
+  border-top-left-radius: 10px  !important;
+  border-top-right-radius: 10px  !important;
+  border-width: 0.5px  !important;
+}
+
+
+===== ./src/main.jsx =====
+
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import 'dynaura/styles.css'
+import App from './App.jsx'
+import { ThemeProvider } from './context/ThemeContext'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
+  </StrictMode>,
+)
+
+
+===== ./src/services/supabase.js =====
+
+import { createClient } from "@supabase/supabase-js";
+
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+);
+
+
+===== ./src/utils/trip.js =====
+
+import { dynaura } from "dynaura";
+import { DEFAULT_MEMBERS } from "../data/constants";
+
+export const getTodayISO = () => new Date().toLocaleDateString("en-CA");
+
+export const formatForDB = (isoDate) => {
+  if (!isoDate || !isoDate.includes("-")) return isoDate;
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}/${y}`;
+};
+
+export const parseForUI = (thDate) => {
+  if (!thDate || !thDate.includes("/")) return getTodayISO();
+  const [d, m, y] = thDate.split("/");
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+};
+
+export const getStoredMembers = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("tripMembers") || "null");
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+  } catch {
+    // Ignore malformed local data and use the defaults.
+  }
+  return DEFAULT_MEMBERS;
+};
+
+export const getStoredMemberDetails = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("memberDetails") || "null");
+    if (saved) return saved;
+  } catch {
+    // Ignore malformed local data and use an empty details object.
+  }
+  return {};
+};
+
+export const formatMoney = (value) =>
+  Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+export const normalizePromptPay = (value) => {
+  let normalized = String(value || "").trim().replace(/[\s-]/g, "");
+  if (normalized.startsWith("+66")) {
+    normalized = `0${normalized.slice(3)}`;
+  } else if (normalized.startsWith("66") && normalized.length === 11) {
+    normalized = `0${normalized.slice(2)}`;
+  }
+
+  return normalized;
+};
+
+export const validatePromptPay = (value) => {
+  const raw = String(value || "").trim();
+  if (raw && /[^0-9+\-\s]/.test(raw)) {
+    return {
+      valid: false,
+      normalized: "",
+      message: "กรุณากรอกเฉพาะตัวเลข เว้นวรรคหรือเครื่องหมาย - เท่านั้น",
+    };
+  }
+  if (raw.includes("+") && !raw.replace(/[\s-]/g, "").startsWith("+66")) {
+    return {
+      valid: false,
+      normalized: "",
+      message: "กรุณากรอกเบอร์โทรหรือเลขบัตรประชาชนที่ถูกต้อง",
+    };
+  }
+
+  const normalized = normalizePromptPay(value);
+  if (!normalized) return { valid: true, normalized: "" };
+
+  const valid =
+    (normalized.length === 10 && /^0\d{9}$/.test(normalized)) ||
+    (normalized.length === 13 && /^\d{13}$/.test(normalized));
+
+  return {
+    valid,
+    normalized,
+    message: "กรุณากรอกพร้อมเพย์เป็นเบอร์มือถือ 10 หลักหรือเลขบัตรประชาชน 13 หลัก",
+  };
+};
+
+export const openBankApp = async (textToCopy, scheme, title) => {
+  let copied = false;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+  } else {
+    const textarea = document.createElement("textarea");
+    textarea.value = textToCopy;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    copied = document.execCommand("copy");
+    textarea.remove();
+  }
+
+  if (!copied) {
+    dynaura.error({
+      title: "คัดลอกไม่สำเร็จ",
+      description: "กรุณาลองคัดลอกเลขบัญชีอีกครั้ง",
+      duration: 4000,
+    });
+    return;
+  }
+
+  dynaura.success({
+    title,
+    description: scheme
+      ? "ก๊อปเลขบัญชีแล้ว กำลังเปิดแอปธนาคาร"
+      : "คัดลอกเลขบัญชีเรียบร้อยแล้ว",
+    duration: 3000,
+  });
+
+  if (scheme) window.location.href = scheme;
+};
+// ดึงข้อมูลคิวที่ค้างซิงค์ (Get pending sync queue)
+export const getOfflineQueue = () => {
+  try {
+    return JSON.parse(localStorage.getItem("trip_offline_queue") || "[]");
+  } catch {
+    return [];
+  }
+};
+
+// บันทึกคิวลงเครื่อง (Save queue to local storage)
+export const saveOfflineQueue = (queue) => {
+  localStorage.setItem("trip_offline_queue", JSON.stringify(queue));
+};
+
+// ดึงข้อมูลรายจ่ายล่าสุดที่เคยโหลดไว้ (Get cached expenses)
+export const getCachedExpenses = () => {
+  try {
+    return JSON.parse(localStorage.getItem("trip_cached_expenses") || "[]");
+  } catch {
+    return [];
+  }
+};
+
+// บันทึกข้อมูลรายจ่ายลงเครื่องเพื่อแสดงผลทันที (Save expenses to local storage for instant load)
+export const saveCachedExpenses = (expenses) => {
+  localStorage.setItem("trip_cached_expenses", JSON.stringify(expenses));
+};
+
+===== ./tailwind.config.js =====
+
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+===== ./vite.config.js =====
+
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon-180x180.png', 'pwa-192x192.png', 'pwa-512x512.png'],
+      manifest: {
+        name: 'Trip Calc',
+        short_name: 'Trip Calc',
+        description: 'จดรายจ่ายและจัดสรรยอดสำหรับทริป',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#030712',
+        theme_color: '#030712',
+        icons: [
+          {
+            src: '/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: '/maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff,woff2}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^.*supabase.*$/],
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-stylesheets',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+      devOptions: {
+        enabled: true,
+      },
+    }),
+  ],
+})
+

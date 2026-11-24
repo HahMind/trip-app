@@ -1,10 +1,5 @@
-import {
-  Edit2,
-  Receipt,
-  WifiOff,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { WifiOff } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { dynaura, Toaster } from "dynaura";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
@@ -16,6 +11,7 @@ import {
   getTodayISO,
   parseForUI,
 } from "./utils/trip";
+import ExpenseForm from "./components/ExpenseForm";
 import ExpenseList from "./components/ExpenseList";
 import HistoryModal from "./components/HistoryModal";
 import MemberModal from "./components/MemberModal";
@@ -25,30 +21,37 @@ import TripHeader from "./components/TripHeader";
 import ThemeMenu from "./components/ThemeMenu";
 import SettlementSection from "./components/SettlementSection";
 import usePinchGuard from "./hooks/usePinchGuard";
+import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
-import { useTheme } from "./context/ThemeContext";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-);
-const version_number = "3.2.0";
+import { supabase } from "./services/supabase";
+const version_number = "3.2.1";
 
 export default function App() {
-  const { theme } = useTheme();
-  const [MEMBERS, setMembers] = useState(getStoredMembers);
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
 
   const [paidBy, setPaidBy] = useState(() => {
     const saved = localStorage.getItem("defaultPaidBy");
-    return saved && MEMBERS.includes(saved) ? saved : MEMBERS[0] || "";
+    const storedMembers = getStoredMembers();
+    return saved && storedMembers.includes(saved)
+      ? saved
+      : storedMembers[0] || "";
   });
 
-  const [expenses, setExpenses] = useState([]); // เริ่มด้วย Array ว่าง รอโหลดจาก DB
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const updatePaidByFromMembers = useCallback((members) => {
+    setPaidBy((previous) =>
+      members.includes(previous) ? previous : members[0] || "",
+    );
+  }, []);
+  const {
+    members: MEMBERS,
+    expenses,
+    isOffline,
+    loading,
+    isSyncing,
+    refreshMembers,
+    refreshExpenses,
+  } = useTripData(updatePaidByFromMembers);
 
-  const [loading, setLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState({});
   const [showHistory, setShowHistory] = useState(false);
@@ -77,118 +80,6 @@ export default function App() {
     () => localStorage.getItem("lastOdometerEnd") || "",
   );
   const [odometerEnd, setOdometerEnd] = useState("");
-
-  // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
-  // const [isPressing, setIsPressing] = useState(false);
-  // const pressTimer = useRef(null);
-  // const hasScrolled = useRef(false);
-
-  // ดึงรายชื่อจาก Database ตรงๆ
-  const refreshMembers = useCallback(async () => {
-    if (!navigator.onLine) return;
-    const { data, error } = await supabase
-      .from("trip_members")
-      .select("name")
-      .order("created_at", { ascending: true });
-    if (data && data.length > 0) {
-      const fetchedMembers = data.map((d) => d.name);
-      setMembers(fetchedMembers);
-      localStorage.setItem("tripMembers", JSON.stringify(fetchedMembers));
-      setPaidBy((prev) =>
-        fetchedMembers.includes(prev) ? prev : fetchedMembers[0],
-      );
-    }
-  }, []);
-
-  // ดึงรายจ่ายจาก Database ตรงๆ
-  const refreshExpenses = useCallback(async () => {
-    // 1. ตรวจสอบหากไม่มีอินเทอร์เน็ต ให้ดึงข้อมูลที่เคยแคชไว้ใน localStorage มาแสดงผลทันที
-    if (!navigator.onLine) {
-      const cachedData = localStorage.getItem("tripExpensesCache");
-      if (cachedData) {
-        setExpenses(JSON.parse(cachedData));
-      }
-      return;
-    }
-
-    setIsSyncing(true);
-    try {
-      const { data, error } = await supabase
-        .from("trip_expenses")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (data) {
-        // 2. หากดึงข้อมูลสำเร็จ ให้อัปเดต State และบันทึกสำรองลง localStorage
-        setExpenses(data);
-        localStorage.setItem("tripExpensesCache", JSON.stringify(data));
-      }
-    } catch (error) {
-      // 3. หากเกิด Error ระหว่างดึงข้อมูล ให้ดึงข้อมูลจากแคชมาแสดงผลสำรอง
-      const cachedData = localStorage.getItem("tripExpensesCache");
-      if (cachedData) {
-        setExpenses(JSON.parse(cachedData));
-      }
-    } finally {
-      setTimeout(() => setIsSyncing(false), 500);
-    }
-  }, []);
-
-  useEffect(() => {
-    // 1. เช็กสถานะอินเทอร์เน็ตตั้งต้นของเครื่องทันทีที่เปิดแอป
-    setIsOffline(!navigator.onLine);
-
-    // 2. ฟังก์ชันจัดการเมื่อเน็ตกลับมาเชื่อมต่อ
-    const handleOnline = () => {
-      setIsOffline(false);
-      Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
-        setLoading(false),
-      );
-    };
-
-    // 3. ฟังก์ชันจัดการเมื่อเน็ตหลุด
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
-
-    // 4. ผูก Event Listener ดักฟังสถานะเครือข่าย
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    // 5. สั่งดึงข้อมูลทันที (ถ้ามีเน็ตจะดึงจาก Supabase / ถ้าออฟไลน์จะดึงจาก localStorage ในเครื่อง)
-    Promise.all([refreshMembers(), refreshExpenses()]).then(() =>
-      setLoading(false),
-    );
-
-    // 6. ตั้งค่า Realtime Subscription สำหรับ Supabase
-    const expenseSub = supabase
-      .channel("trip_expenses_changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "trip_expenses" },
-        refreshExpenses,
-      )
-      .subscribe();
-
-    const memberSub = supabase
-      .channel("trip_members_changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "trip_members" },
-        refreshMembers,
-      )
-      .subscribe();
-
-    // 7. คืนค่าฟังก์ชัน Cleanup เพื่อลบ Listener และ Subscription ออกเมื่อเลิกใช้งาน
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-      supabase.removeChannel(expenseSub);
-      supabase.removeChannel(memberSub);
-    };
-  }, [refreshExpenses, refreshMembers]);
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
@@ -740,155 +631,31 @@ export default function App() {
       />
 
       <main className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 p-4 lg:grid-cols-3">
-        <section
-          className={`rounded-xl border p-6 shadow-sm transition-colors lg:col-span-3 ${
-            editId
-              ? "border-yellow-400 bg-yellow-100/15"
-              : "border-gray-700 bg-gray-900"
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
-            {editId ? (
-              <Edit2 size={20} className="text-yellow-400" />
-            ) : (
-              <Receipt size={20} />
-            )}
-            <h2 className={editId ? "text-yellow-400" : ""}>
-              {editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}
-            </h2>
-          </div>
-          <form onSubmit={handleAddExpense} className="grid gap-3 lg:grid-cols-2">
-            <div className="flex gap-2 lg:order-2">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => setDate(getTodayISO())}
-                className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
-              >
-                วันนี้
-              </button>
-            </div>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none lg:order-1"
-            >
-              {CATEGORIES.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-
-            {category === "ค่าน้ำมัน" && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2 lg:order-3 lg:col-span-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-gray-400">
-                      ไมล์เริ่มต้น
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="ไมล์เริ่มต้น"
-                      value={odometerStart}
-                      onChange={(e) => setOdometerStart(e.target.value)}
-                      className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-400">
-                      ไมล์สิ้นสุด
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="ไมล์สิ้นสุด"
-                      value={odometerEnd}
-                      onChange={(e) => setOdometerEnd(e.target.value)}
-                      className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <input
-              type="text"
-              placeholder="ชื่อรายการ (เว้นว่างได้)"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
-              className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none lg:order-4 lg:col-span-2"
-            />
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:order-5">
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder="จำนวนเงิน"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
-              />
-              <select
-                value={paidBy}
-                onChange={(e) => {
-                  if (e.target.value === "__ADD__") setShowMemberModal(true);
-                  else {
-                    setPaidBy(e.target.value);
-                    localStorage.setItem("defaultPaidBy", e.target.value);
-                  }
-                }}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
-              >
-                {MEMBERS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-                <option value="__ADD__">+ เพิ่มคนใหม่...</option>
-              </select>
-            </div>
-
-            {editId ? (
-              <div className="flex gap-2 lg:order-6 lg:col-span-2">
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="flex-1 rounded-lg bg-gray-700 py-3 font-bold text-gray-100 transition hover:bg-gray-600"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingExpense}
-                  className={`flex-2 rounded-lg py-3 font-bold text-gray-950 transition ${
-                    isSubmittingExpense
-                      ? "cursor-not-allowed bg-gray-500 shimmer"
-                      : "bg-yellow-400 hover:bg-yellow-300"
-                  }`}
-                >
-                  {isSubmittingExpense ? "กำลังบันทึก..." : "บันทึกแก้ไข"}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="submit"
-                disabled={isSubmittingExpense}
-                className={`w-full rounded-lg py-3 font-bold text-gray-950 transition lg:order-6 lg:col-span-2 ${
-                  isSubmittingExpense
-                    ? "cursor-not-allowed bg-gray-500 shimmer"
-                    : "bg-lime-400 hover:bg-lime-300"
-                }`}
-              >
-                {isSubmittingExpense ? "กำลังบันทึก..." : "บันทึกรายการ"}
-              </button>
-            )}
-          </form>
-        </section>
+        <ExpenseForm
+          editId={editId}
+          date={date}
+          setDate={setDate}
+          item={item}
+          setItem={setItem}
+          amount={amount}
+          setAmount={setAmount}
+          category={category}
+          setCategory={setCategory}
+          paidBy={paidBy}
+          setPaidBy={(value) => {
+            setPaidBy(value);
+            localStorage.setItem("defaultPaidBy", value);
+          }}
+          members={MEMBERS}
+          odometerStart={odometerStart}
+          setOdometerStart={setOdometerStart}
+          odometerEnd={odometerEnd}
+          setOdometerEnd={setOdometerEnd}
+          isSubmitting={isSubmittingExpense}
+          onSubmit={handleAddExpense}
+          onCancel={cancelEdit}
+          onAddMember={() => setShowMemberModal(true)}
+        />
 
         <div className="lg:col-span-2" onClick={(e) => e.stopPropagation()}>
           <ExpenseList
