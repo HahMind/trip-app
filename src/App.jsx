@@ -13,6 +13,7 @@ import {
   parseForUI,
   saveOfflineQueue,
 } from "./utils/trip";
+import SettlementDetailsModal from "./components/SettlementDetailsModal";
 import ExpenseForm from "./components/ExpenseForm";
 import ExpenseList from "./components/ExpenseList";
 import HistoryModal from "./components/HistoryModal";
@@ -26,7 +27,7 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
-const version_number = "3.3.3";
+const version_number = "3.4.0";
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
 
@@ -62,6 +63,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [activePayment, setActivePayment] = useState(null);
+  const [activeSettlementDetails, setActiveSettlementDetails] = useState(null);
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
   const [editId, setEditId] = useState(null);
   const [swipedId, setSwipedId] = useState(null);
@@ -149,8 +151,7 @@ export default function App() {
           expense.odometer_end !== "",
       )
       .sort(
-        (a, b) =>
-          new Date(b.created_at || 0) - new Date(a.created_at || 0),
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
       )[0];
     if (latestGasExpense) {
       setOdometerStart(String(latestGasExpense.odometer_end));
@@ -220,11 +221,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateMemberDetails = async (
-    name,
-    details,
-    showToast = true,
-  ) => {
+  const handleUpdateMemberDetails = async (name, details, showToast = true) => {
     try {
       const { error } = await supabase
         .from("trip_members")
@@ -372,15 +369,14 @@ export default function App() {
         const baseExpenses = cachedExpenses.filter(
           (expense) => !expense.isPendingSync,
         );
-        const mergedExpenses = [
-          ...baseExpenses,
-          ...queue,
-          offlineExpense,
-        ].sort(
+        const mergedExpenses = [...baseExpenses, ...queue, offlineExpense].sort(
           (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
         );
         setExpenses(mergedExpenses);
-        localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
+        localStorage.setItem(
+          "tripExpensesCache",
+          JSON.stringify(mergedExpenses),
+        );
 
         setItem("");
         setAmount("");
@@ -431,7 +427,9 @@ export default function App() {
         setHighlightedId(editId);
         setTimeout(() => setHighlightedId(null), 2000);
       } else {
-        const { error } = await supabase.from("trip_expenses").insert([payload]);
+        const { error } = await supabase
+          .from("trip_expenses")
+          .insert([payload]);
         if (error) throw error;
         dynaura.update(notificationId, { progress: 0.72 });
       }
@@ -658,7 +656,9 @@ export default function App() {
       progress: 0.15,
     });
     try {
-      const { error } = await supabase.from("trip_expenses").insert([newHistory]);
+      const { error } = await supabase
+        .from("trip_expenses")
+        .insert([newHistory]);
       if (error) throw error;
       dynaura.update(notificationId, { progress: 0.72 });
       setActivePayment(null);
@@ -738,11 +738,7 @@ export default function App() {
       className="relative min-h-dvh bg-gray-950 pb-24 font-sans text-gray-100"
       onClick={handleAppClick}
     >
-      <Toaster
-        position="top"
-        offset={0}
-        haptics
-      />
+      <Toaster position="top" offset={0} haptics />
       <style>{`
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
@@ -869,6 +865,7 @@ export default function App() {
         <SettlementSection
           settlements={settlements}
           onOpenPayment={setActivePayment}
+          onOpenDetails={setActiveSettlementDetails}
           onOpenHistory={() => setShowHistory(true)}
           pendingSettlement={pendingSettlement}
           isOffline={isOffline}
@@ -900,6 +897,12 @@ export default function App() {
           onUpdateDetails={handleUpdateMemberDetails}
           onConfirm={handleSettleDebt}
           isSubmitting={Boolean(pendingSettlement)}
+        />
+      )}
+      {activeSettlementDetails && (
+        <SettlementDetailsModal
+          transfer={activeSettlementDetails}
+          onClose={() => setActiveSettlementDetails(null)}
         />
       )}
       {activeSplitExpense && (

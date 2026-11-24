@@ -1,13 +1,12 @@
-import { ArrowRight, CheckCircle, History, Users } from "lucide-react";
+import { ArrowRight, CheckCircle, FileText, History, Users } from "lucide-react";
 import { formatMoney } from "../utils/trip";
-import { dynaura } from "dynaura";
 
 export default function SettlementSection({
   settlements,
   onOpenPayment,
+  onOpenDetails,
   onOpenHistory,
   pendingSettlement,
-  isOffline,
 }) {
   return (
     <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
@@ -37,7 +36,7 @@ export default function SettlementSection({
               className="rounded-lg border border-lime-900 bg-gray-800 p-3"
             >
               <div className="mb-2 flex justify-between p-2">
-                <div className="flex gap-2 font-medium">
+                <div className="flex items-center gap-2 font-medium">
                   <span className="text-gray-100">{transfer.from}</span>
                   <ArrowRight size={16} className="text-gray-400" />
                   <span className="text-gray-100">{transfer.to}</span>
@@ -46,27 +45,27 @@ export default function SettlementSection({
                   ฿{formatMoney(transfer.amount)}
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  if (isOffline) {
-                    dynaura.warning({
-                      title: "ออฟไลน์",
-                      description: "ไม่สามารถเคลียร์ยอดขณะออฟไลน์ได้",
-                      duration: 4000,
-                    });
-                    return;
-                  }
-                  onOpenPayment(transfer);
-                }}
-                disabled={Boolean(pendingSettlement) || isOffline}
-                className={`m-auto flex w-10/12 items-center justify-center gap-1 rounded py-2 text-xs text-gray-950 shadow-sm transition ${
-                  pendingSettlement || isOffline
-                    ? "cursor-not-allowed bg-gray-500 shimmer"
-                    : "bg-lime-500 hover:bg-lime-300"
-                }`}
-              >
-                <CheckCircle size={14} /> เคลียร์ยอดนี้
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(transfer)}
+                  className="flex flex-1 items-center justify-center gap-1 rounded border border-gray-600 bg-gray-900 py-2 text-xs font-medium text-gray-100 shadow-sm transition hover:bg-gray-700"
+                >
+                  <FileText size={14} /> รายละเอียด
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenPayment(transfer)}
+                  disabled={Boolean(pendingSettlement)}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded py-2 text-xs font-bold text-gray-950 shadow-sm transition ${
+                    pendingSettlement
+                      ? "cursor-not-allowed bg-gray-500 shimmer"
+                      : "bg-lime-500 hover:bg-lime-300"
+                  }`}
+                >
+                  <CheckCircle size={14} /> เคลียร์ยอด
+                </button>
+              </div>
             </div>
           ))
         )}
