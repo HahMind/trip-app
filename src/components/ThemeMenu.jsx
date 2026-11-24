@@ -30,6 +30,7 @@ export default function ThemeMenu() {
     <div
       className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-40 h-14 w-14"
       onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
     >
       {THEMES.map((option) => (
         <button

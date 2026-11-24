@@ -62,8 +62,20 @@ export default function useTripData(onMembersUpdated, onMemberDetailsUpdated) {
       if (error) throw error;
 
       if (data) {
-        setExpenses(data);
-        localStorage.setItem("tripExpensesCache", JSON.stringify(data));
+        const pendingQueue = getOfflineQueue();
+        const mergedById = new Map();
+        [...data, ...pendingQueue].forEach((expense) => {
+          mergedById.set(expense.id, expense);
+        });
+        const mergedExpenses = [...mergedById.values()].sort(
+          (a, b) =>
+            new Date(b.created_at || 0) - new Date(a.created_at || 0),
+        );
+        setExpenses(mergedExpenses);
+        localStorage.setItem(
+          "tripExpensesCache",
+          JSON.stringify(mergedExpenses),
+        );
       }
     } catch {
       const cachedData = localStorage.getItem("tripExpensesCache");

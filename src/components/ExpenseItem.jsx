@@ -186,6 +186,7 @@ export default function ExpenseItem({
               <Users size={19} />
             </button>
             <button
+              disabled={!canInteract}
               onClick={(e) => {
                 e.stopPropagation();
                 if (!canInteract) {
@@ -195,7 +196,11 @@ export default function ExpenseItem({
                 onEdit(expense);
                 setSwipedId(null);
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition hover:bg-lime-400/10 hover:text-lime-400"
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition ${
+                !canInteract
+                  ? "opacity-40 cursor-not-allowed"
+                  : "hover:bg-lime-400/10 hover:text-lime-400"
+              }`}
               title="แก้ไขรายการ"
               aria-label="แก้ไขรายการ"
             >

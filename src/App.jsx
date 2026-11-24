@@ -26,7 +26,7 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
-const version_number = "3.3.0";
+const version_number = "3.3.1";
 
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
@@ -338,15 +338,6 @@ export default function App() {
       });
 
     const wasEditing = Boolean(editId);
-    expenseSubmitLock.current = true;
-    setIsSubmittingExpense(true);
-    const notificationId = dynaura.loading({
-      id: `expense-${wasEditing ? "edit" : "add"}-${Date.now()}`,
-      title: wasEditing ? "กำลังแก้ไขรายการ" : "กำลังบันทึกรายการ",
-      description: item.trim() || category,
-      progress: 0.12,
-    });
-
     const payload = {
       expense_date: formatForDB(date),
       item_name: item.trim() || category,
@@ -364,44 +355,50 @@ export default function App() {
     };
 
     if (isOffline && !editId) {
-      const offlineExpense = {
-        ...payload,
-        id: `offline_${crypto.randomUUID()}`,
-        isPendingSync: true,
-        created_at: new Date().toISOString(),
-      };
-      const queue = getOfflineQueue();
-      saveOfflineQueue([...queue, offlineExpense]);
+      try {
+        expenseSubmitLock.current = true;
+        setIsSubmittingExpense(true);
 
-      const cachedData = localStorage.getItem("tripExpensesCache");
-      const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
-      const baseExpenses = cachedExpenses.filter(
-        (expense) => !expense.isPendingSync,
-      );
-      const mergedExpenses = [
-        ...baseExpenses,
-        ...queue,
-        offlineExpense,
-      ].sort(
-        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
-      );
-      setExpenses(mergedExpenses);
-      localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
+        const offlineExpense = {
+          ...payload,
+          id: `offline_${crypto.randomUUID()}`,
+          isPendingSync: true,
+          created_at: new Date().toISOString(),
+        };
+        const queue = getOfflineQueue();
+        saveOfflineQueue([...queue, offlineExpense]);
 
-      setItem("");
-      setAmount("");
-      setCategory(CATEGORIES[0]);
-      setOdometerEnd("");
-      setDraftSplitBetween([paidBy]);
-      setDidEditDraftSplit(false);
-      setDidEditOdometerStart(false);
-      setDidEditDraftSplit(false);
-      setDidEditOdometerStart(false);
-      dynaura.success({
-        title: "บันทึกออฟไลน์แล้ว (รอซิงค์เมื่อมีเน็ต)",
-        description: `${formatMoney(numericAmount)} บาท`,
-        duration: 4000,
-      });
+        const cachedData = localStorage.getItem("tripExpensesCache");
+        const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
+        const baseExpenses = cachedExpenses.filter(
+          (expense) => !expense.isPendingSync,
+        );
+        const mergedExpenses = [
+          ...baseExpenses,
+          ...queue,
+          offlineExpense,
+        ].sort(
+          (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+        );
+        setExpenses(mergedExpenses);
+        localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
+
+        setItem("");
+        setAmount("");
+        setCategory(CATEGORIES[0]);
+        setOdometerEnd("");
+        setDraftSplitBetween([paidBy]);
+        setDidEditDraftSplit(false);
+        setDidEditOdometerStart(false);
+        dynaura.success({
+          title: "บันทึกออฟไลน์แล้ว (รอซิงค์เมื่อมีเน็ต)",
+          description: `${formatMoney(numericAmount)} บาท`,
+          duration: 4000,
+        });
+      } finally {
+        expenseSubmitLock.current = false;
+        setIsSubmittingExpense(false);
+      }
       return;
     }
 
@@ -413,6 +410,15 @@ export default function App() {
         text: "ไม่สามารถแก้ไขรายการขณะออฟไลน์ได้",
       });
     }
+
+    expenseSubmitLock.current = true;
+    setIsSubmittingExpense(true);
+    const notificationId = dynaura.loading({
+      id: `expense-${wasEditing ? "edit" : "add"}-${Date.now()}`,
+      title: wasEditing ? "กำลังแก้ไขรายการ" : "กำลังบันทึกรายการ",
+      description: item.trim() || category,
+      progress: 0.12,
+    });
 
     try {
       if (wasEditing) {
