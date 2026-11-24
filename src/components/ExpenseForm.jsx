@@ -31,18 +31,18 @@ export default function ExpenseForm({
     <section
       className={`rounded-xl border p-6 shadow-sm transition-colors lg:col-span-3 ${
         editId
-          ? "border-yellow-400 bg-yellow-100/15"
+          ? "border-yellow-400 bg-yellow-200/20"
           : "border-gray-700 bg-gray-900"
       }`}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="mb-4 flex items-center gap-2 font-bold text-lime-400">
+      <div className={`mb-4 flex items-center gap-2 font-bold text-lime-400 ${editId ? 'edit-yellow-text' : ''}`}>
         {editId ? (
-          <Edit2 size={20} className="text-yellow-400" />
+          <Edit2 size={20} className="text-yellow-400 edit-yellow-text" />
         ) : (
           <Receipt size={20} />
         )}
-        <h2 className={editId ? "text-yellow-400" : ""}>
+        <h2 className={editId ? "text-yellow-400 edit-yellow-text" : ""}>
           {editId ? "แก้ไขรายการ" : "จดรายจ่ายใหม่"}
         </h2>
       </div>

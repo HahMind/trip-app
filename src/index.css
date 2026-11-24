@@ -60,7 +60,7 @@ html[data-theme="purple"],
   --theme-text-strong: #33272a;
   --theme-text-muted: #594a4e;
   --theme-accent: #ff8ba7;
-  --theme-accent-hover: #ff8ba7;
+  --theme-accent-hover: #f4587c;
   --theme-accent-soft: #c3f0ca;
 }
 
@@ -349,4 +349,12 @@ html, body {
   border-top-left-radius: 10px  !important;
   border-top-right-radius: 10px  !important;
   border-width: 0.5px  !important;
+}
+[data-theme="purple"] .edit-yellow-text ,
+[data-theme="pink"] .edit-yellow-text {
+  color: #1d1b02 !important;
+  background-color: #f1d500 !important;
+  padding: 1px 4px !important;
+  border-radius: 10px !important;
+  width: fit-content !important;
 }
