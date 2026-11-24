@@ -1,4 +1,4 @@
-import { Edit2, Receipt, Users } from "lucide-react";
+import { Edit2, Receipt, Users, ChevronDown } from "lucide-react";
 import { CATEGORIES } from "../data/constants";
 import { getTodayISO } from "../utils/trip";
 
@@ -62,17 +62,23 @@ export default function ExpenseForm({
             วันนี้
           </button>
         </div>
-        <select
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none lg:order-1"
-        >
-          {CATEGORIES.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+        <div className="relative w-full lg:order-1">
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 py-2 pl-2 pr-10 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+          >
+            {CATEGORIES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={18}
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+        </div>
 
         {category === "ค่าน้ำมัน" && (
           <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 lg:order-3 lg:col-span-2">
@@ -93,9 +99,7 @@ export default function ExpenseForm({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-gray-400">
-                  ไมล์สิ้นสุด
-                </label>
+                <label className="text-[10px] text-gray-400">ไมล์สิ้นสุด</label>
                 <input
                   type="number"
                   placeholder="ไมล์สิ้นสุด"
@@ -119,35 +123,44 @@ export default function ExpenseForm({
           <input
             type="number"
             inputMode="decimal"
-            placeholder="0.00"
+            placeholder="จำนวนเงิน (บาท)"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
           />
-          <div className="grid grid-cols-3 gap-2">
-            <select
-              value={paidBy}
-              onChange={(event) => {
-                if (event.target.value === "__ADD__") onAddMember();
-                else setPaidBy(event.target.value);
-              }}
-              className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
-            >
-              {members.map((member) => (
-                <option key={member} value={member}>
-                  {member}
-                </option>
-              ))}
-              <option value="__ADD__">+ เพิ่มคนใหม่...</option>
-            </select>
+          <div className="grid w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-2">
+            <div className="relative w-full">
+              <select
+                value={paidBy}
+                onChange={(event) => {
+                  if (event.target.value === "__ADD__") onAddMember();
+                  else setPaidBy(event.target.value);
+                }}
+                className="w-full appearance-none rounded-lg border border-gray-700 bg-gray-800 py-2 pl-2 pr-10 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+              >
+                {members.map((member) => (
+                  <option key={member} value={member}>
+                    {member}
+                  </option>
+                ))}
+                <option value="__ADD__">+ เพิ่มคนใหม่...</option>
+              </select>
+              <ChevronDown
+                size={18}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+            </div>
+
             {!editId && (
               <button
                 type="button"
                 onClick={onOpenSplit}
-                className="col-span-1 flex items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-2 text-sm font-bold text-lime-400"
+                className="flex w-full items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-2 text-sm font-bold text-lime-400"
               >
                 <Users size={16} />
-                <span>หาร {draftSplitBetween.length} คน</span>
+                <span>
+                  หาร {draftSplitBetween.length > 0 ? draftSplitBetween.length : 1} คน
+                </span>
               </button>
             )}
           </div>
@@ -158,7 +171,7 @@ export default function ExpenseForm({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 rounded-lg bg-gray-700 py-3 font-bold text-gray-100 transition hover:bg-gray-600"
+              className="flex-1 rounded-lg bg-red-500 py-3 font-bold text-gray-100 transition hover:bg-red-600"
             >
               ยกเลิก
             </button>

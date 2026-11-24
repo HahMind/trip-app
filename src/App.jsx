@@ -26,8 +26,7 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
-const version_number = "3.3.1";
-
+const version_number = "3.3.2";
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
 
