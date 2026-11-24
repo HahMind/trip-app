@@ -32,7 +32,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
-const version_number = "3.1.1";
+const version_number = "3.1.2";
 
 export default function App() {
   const { theme } = useTheme();
