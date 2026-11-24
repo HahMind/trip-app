@@ -1,5 +1,5 @@
 import { Edit2, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BANKS } from "../data/constants";
 import useSwipeDrag from "../hooks/useSwipeDrag";
 import { dynaura } from "dynaura";
@@ -17,12 +17,30 @@ export default function MemberItem({
   onEdit,
   setShowNewPayForm,
   isPending,
+  isOffline,
 }) {
   const [form, setForm] = useState({
     promptpay: details?.promptpay || "",
     bankId: details?.bankId || "kbank",
     bankAcc: details?.bankAcc || "",
   });
+
+  useEffect(() => {
+    if (isEditing) {
+      setForm({
+        promptpay: details?.promptpay || "",
+        bankId: details?.bankId || "kbank",
+        bankAcc: details?.bankAcc || "",
+      });
+    }
+  }, [isEditing, details]);
+
+  const warnOffline = () =>
+    dynaura.warning({
+      title: "ออฟไลน์",
+      description: "ไม่สามารถแก้ไขหรือลบสมาชิกขณะออฟไลน์ได้",
+      duration: 4000,
+    });
 
   const isOpen = swipedMember === member;
   const {
@@ -45,10 +63,16 @@ export default function MemberItem({
       {/* 💻 [Desktop View] ปุ่มลบโชว์ไว้ตลอดทางด้านขวา ไม่ต้องปัด */}
       <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
         <button
-          onClick={() => onRemove(member, hasDebt)}
-          disabled={isPending}
+          onClick={() => {
+            if (isOffline) {
+              warnOffline();
+              return;
+            }
+            onRemove(member, hasDebt);
+          }}
+          disabled={isPending || isOffline}
           className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
-            isPending
+            isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
@@ -64,12 +88,16 @@ export default function MemberItem({
       <div className="absolute inset-y-0 right-3 flex md:hidden items-center justify-center">
         <button
           onClick={() => {
+            if (isOffline) {
+              warnOffline();
+              return;
+            }
             onRemove(member, hasDebt);
             setSwipedMember(null);
           }}
-          disabled={isPending}
+          disabled={isPending || isOffline}
           className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
-            isPending
+            isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
@@ -109,10 +137,15 @@ export default function MemberItem({
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
+              if (isOffline) {
+                warnOffline();
+                return;
+              }
               onEdit();
               setShowNewPayForm(false); 
             }}
             className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
+            disabled={isOffline}
           >
             <Edit2 size={16} />
           </button>
@@ -179,6 +212,10 @@ export default function MemberItem({
           </div>
           <button
             onClick={() => {
+              if (isOffline) {
+                warnOffline();
+                return;
+              }
               const validation = validatePromptPay(form.promptpay);
               if (!validation.valid) {
                 dynaura.warning({
@@ -194,7 +231,10 @@ export default function MemberItem({
               });
               onEdit(); // ปิดฟอร์มแก้ไขหลังจากกดบันทึก
             }}
-            className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+            disabled={isOffline}
+            className={`flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 ${
+              isOffline ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
             <Save size={16} /> บันทึกข้อมูล
           </button>

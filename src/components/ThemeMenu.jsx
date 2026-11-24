@@ -1,5 +1,5 @@
 import { Palette } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 
 const THEMES = [
@@ -12,6 +12,19 @@ const THEMES = [
 export default function ThemeMenu() {
   const [open, setOpen] = useState(false);
   const { setTheme } = useTheme();
+
+  useEffect(() => {
+    if (!open) return;
+    const closeMenu = () => setOpen(false);
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("scroll", closeMenu, { passive: true });
+    window.addEventListener("touchmove", closeMenu, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("scroll", closeMenu);
+      window.removeEventListener("touchmove", closeMenu);
+    };
+  }, [open]);
 
   return (
     <div

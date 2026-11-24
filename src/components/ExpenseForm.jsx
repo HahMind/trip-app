@@ -1,4 +1,4 @@
-import { Edit2, Receipt } from "lucide-react";
+import { Edit2, Receipt, Users } from "lucide-react";
 import { CATEGORIES } from "../data/constants";
 import { getTodayISO } from "../utils/trip";
 
@@ -23,6 +23,9 @@ export default function ExpenseForm({
   onSubmit,
   onCancel,
   onAddMember,
+  draftSplitBetween,
+  onOpenSplit,
+  setDidEditOdometerStart,
 }) {
   return (
     <section
@@ -82,7 +85,10 @@ export default function ExpenseForm({
                   type="number"
                   placeholder="ไมล์เริ่มต้น"
                   value={odometerStart}
-                  onChange={(event) => setOdometerStart(event.target.value)}
+                  onChange={(event) => {
+                    setDidEditOdometerStart(true);
+                    setOdometerStart(event.target.value);
+                  }}
                   className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
                 />
               </div>
@@ -109,30 +115,42 @@ export default function ExpenseForm({
           onChange={(event) => setItem(event.target.value)}
           className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none lg:order-4 lg:col-span-2"
         />
-        <div className="grid grid-cols-1 gap-3 lg:order-5 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:order-5">
           <input
             type="number"
             inputMode="decimal"
             placeholder="0.00"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+            className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
           />
-          <select
-            value={paidBy}
-            onChange={(event) => {
-              if (event.target.value === "__ADD__") onAddMember();
-              else setPaidBy(event.target.value);
-            }}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
-          >
-            {members.map((member) => (
-              <option key={member} value={member}>
-                {member}
-              </option>
-            ))}
-            <option value="__ADD__">+ เพิ่มคนใหม่...</option>
-          </select>
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              value={paidBy}
+              onChange={(event) => {
+                if (event.target.value === "__ADD__") onAddMember();
+                else setPaidBy(event.target.value);
+              }}
+              className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
+            >
+              {members.map((member) => (
+                <option key={member} value={member}>
+                  {member}
+                </option>
+              ))}
+              <option value="__ADD__">+ เพิ่มคนใหม่...</option>
+            </select>
+            {!editId && (
+              <button
+                type="button"
+                onClick={onOpenSplit}
+                className="col-span-1 flex items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-2 text-sm font-bold text-lime-400"
+              >
+                <Users size={16} />
+                <span>หาร {draftSplitBetween.length} คน</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {editId ? (

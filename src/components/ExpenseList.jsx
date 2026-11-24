@@ -19,6 +19,7 @@ export default function ExpenseList({
   MEMBERS,
   pendingDeleteId,
   pendingSplitId,
+  isOffline,
 }) {
   useEffect(() => {
     const handleScroll = () => {
@@ -98,6 +99,7 @@ export default function ExpenseList({
                       MEMBERS={MEMBERS}
                       isPendingDelete={pendingDeleteId === expense.id}
                       isPendingSplit={pendingSplitId === expense.id}
+                      isOffline={isOffline}
                     />
                   ))}
                 </div>

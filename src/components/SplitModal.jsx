@@ -99,7 +99,9 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
               disabled={isSaving}
               onClick={async () => {
                 setIsSaving(true);
-                const success = await onSave(expense.id, selectedSplit);
+                const success = expense.__draft
+                  ? await onSave(null, selectedSplit)
+                  : await onSave(expense.id, selectedSplit);
                 setIsSaving(false);
                 if (success) onClose();
               }}

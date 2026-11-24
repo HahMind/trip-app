@@ -1,5 +1,5 @@
 import { WifiOff } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { dynaura, Toaster } from "dynaura";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
@@ -9,7 +9,9 @@ import {
   getStoredMemberDetails,
   getStoredMembers,
   getTodayISO,
+  getOfflineQueue,
   parseForUI,
+  saveOfflineQueue,
 } from "./utils/trip";
 import ExpenseForm from "./components/ExpenseForm";
 import ExpenseList from "./components/ExpenseList";
@@ -24,7 +26,7 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
-const version_number = "3.2.1";
+const version_number = "3.3.0";
 
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
@@ -42,15 +44,19 @@ export default function App() {
       members.includes(previous) ? previous : members[0] || "",
     );
   }, []);
+  const updateMemberDetailsFromSupabase = useCallback((details) => {
+    setMemberDetails(details);
+  }, []);
   const {
     members: MEMBERS,
     expenses,
+    setExpenses,
     isOffline,
     loading,
     isSyncing,
     refreshMembers,
     refreshExpenses,
-  } = useTripData(updatePaidByFromMembers);
+  } = useTripData(updatePaidByFromMembers, updateMemberDetailsFromSupabase);
 
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState({});
@@ -69,6 +75,10 @@ export default function App() {
   const [pendingHistoryId, setPendingHistoryId] = useState(null);
   const expenseSubmitLock = useRef(false);
   const settlementSubmitLock = useRef(false);
+  const syncOfflineQueueLock = useRef(false);
+  const [draftSplitBetween, setDraftSplitBetween] = useState([paidBy]);
+  const [didEditDraftSplit, setDidEditDraftSplit] = useState(false);
+  const [didEditOdometerStart, setDidEditOdometerStart] = useState(false);
   usePinchGuard();
 
   const [date, setDate] = useState(getTodayISO());
@@ -76,14 +86,81 @@ export default function App() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
 
-  const [odometerStart, setOdometerStart] = useState(
-    () => localStorage.getItem("lastOdometerEnd") || "",
-  );
+  const [odometerStart, setOdometerStart] = useState("");
   const [odometerEnd, setOdometerEnd] = useState("");
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
   };
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (!navigator.onLine || syncOfflineQueueLock.current) return;
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+
+    syncOfflineQueueLock.current = true;
+    const sortedQueue = [...queue].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at),
+    );
+    const cleanPayloads = sortedQueue.map((item) => {
+      const payload = { ...item };
+      delete payload.id;
+      delete payload.isPendingSync;
+      return payload;
+    });
+
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .insert(cleanPayloads);
+      if (error) throw error;
+
+      saveOfflineQueue([]);
+      await refreshExpenses();
+      dynaura.success({
+        title: "ซิงค์รายการออฟไลน์สำเร็จ",
+        description: `${sortedQueue.length} รายการ`,
+        duration: 4000,
+      });
+    } catch (error) {
+      dynaura.error({
+        title: "ซิงค์รายการออฟไลน์ไม่สำเร็จ",
+        description: error.message,
+        duration: 5000,
+      });
+    } finally {
+      syncOfflineQueueLock.current = false;
+    }
+  }, [refreshExpenses]);
+
+  useEffect(() => {
+    const handleOnline = () => syncOfflineQueue();
+    window.addEventListener("online", handleOnline);
+    if (navigator.onLine) syncOfflineQueue();
+    return () => window.removeEventListener("online", handleOnline);
+  }, [syncOfflineQueue]);
+
+  useEffect(() => {
+    if (editId || didEditOdometerStart) return;
+    const latestGasExpense = [...expenses]
+      .filter(
+        (expense) =>
+          expense.category === "ค่าน้ำมัน" &&
+          expense.odometer_end != null &&
+          expense.odometer_end !== "",
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      )[0];
+    if (latestGasExpense) {
+      setOdometerStart(String(latestGasExpense.odometer_end));
+    }
+  }, [expenses, editId, didEditOdometerStart]);
+
+  useEffect(() => {
+    if (!editId && !didEditDraftSplit) setDraftSplitBetween([paidBy]);
+  }, [paidBy, editId, didEditDraftSplit]);
 
   // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
@@ -106,7 +183,14 @@ export default function App() {
       });
       // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
       try {
-        const { error } = await supabase.from("trip_members").insert([{ name }]);
+        const { error } = await supabase.from("trip_members").insert([
+          {
+            name,
+            promptpay: details?.promptpay || null,
+            bank_id: details?.bankId || null,
+            bank_acc: details?.bankAcc || null,
+          },
+        ]);
         if (error) throw error;
         dynaura.update(notificationId, { progress: 0.72 });
 
@@ -137,16 +221,38 @@ export default function App() {
     }
   };
 
-  const handleUpdateMemberDetails = (name, details, showToast = true) => {
-    const updated = { ...memberDetails, [name]: details };
-    setMemberDetails(updated);
-    localStorage.setItem("memberDetails", JSON.stringify(updated));
-    if (showToast)
-      dynaura.success({
-        title: "บันทึกข้อมูลเรียบร้อย",
-        description: `ข้อมูลการชำระเงินของ ${name}`,
-        duration: 1000,
+  const handleUpdateMemberDetails = async (
+    name,
+    details,
+    showToast = true,
+  ) => {
+    try {
+      const { error } = await supabase
+        .from("trip_members")
+        .update({
+          promptpay: details.promptpay || null,
+          bank_id: details.bankId || null,
+          bank_acc: details.bankAcc || null,
+        })
+        .eq("name", name);
+      if (error) throw error;
+
+      const updated = { ...memberDetails, [name]: details };
+      setMemberDetails(updated);
+      localStorage.setItem("memberDetails", JSON.stringify(updated));
+      if (showToast)
+        dynaura.success({
+          title: "บันทึกข้อมูลเรียบร้อย",
+          description: `ข้อมูลการชำระเงินของ ${name}`,
+          duration: 1000,
+        });
+    } catch (error) {
+      dynaura.error({
+        title: "บันทึกข้อมูลไม่สำเร็จ",
+        description: error.message,
+        duration: 5000,
       });
+    }
   };
 
   const handleRemoveMember = async (name, hasDebt) => {
@@ -222,13 +328,6 @@ export default function App() {
   const handleAddExpense = async (event) => {
     event.preventDefault();
     if (expenseSubmitLock.current) return;
-    if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
-        title: "ออฟไลน์",
-        text: "ไม่สามารถบันทึกรายการขณะออฟไลน์ได้",
-      });
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0)
@@ -254,7 +353,8 @@ export default function App() {
       amount: numericAmount,
       category,
       paid_by: paidBy,
-      split_between: [paidBy],
+      split_between:
+        draftSplitBetween.length > 0 ? draftSplitBetween : [paidBy],
       odometer_start:
         category === "ค่าน้ำมัน" && odometerStart
           ? Number(odometerStart)
@@ -262,6 +362,57 @@ export default function App() {
       odometer_end:
         category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
+
+    if (isOffline && !editId) {
+      const offlineExpense = {
+        ...payload,
+        id: `offline_${crypto.randomUUID()}`,
+        isPendingSync: true,
+        created_at: new Date().toISOString(),
+      };
+      const queue = getOfflineQueue();
+      saveOfflineQueue([...queue, offlineExpense]);
+
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
+      const baseExpenses = cachedExpenses.filter(
+        (expense) => !expense.isPendingSync,
+      );
+      const mergedExpenses = [
+        ...baseExpenses,
+        ...queue,
+        offlineExpense,
+      ].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      );
+      setExpenses(mergedExpenses);
+      localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
+
+      setItem("");
+      setAmount("");
+      setCategory(CATEGORIES[0]);
+      setOdometerEnd("");
+      setDraftSplitBetween([paidBy]);
+      setDidEditDraftSplit(false);
+      setDidEditOdometerStart(false);
+      setDidEditDraftSplit(false);
+      setDidEditOdometerStart(false);
+      dynaura.success({
+        title: "บันทึกออฟไลน์แล้ว (รอซิงค์เมื่อมีเน็ต)",
+        description: `${formatMoney(numericAmount)} บาท`,
+        duration: 4000,
+      });
+      return;
+    }
+
+    if (isOffline) {
+      return Swal.fire({
+        ...SWAL_THEME,
+        icon: "warning",
+        title: "ออฟไลน์",
+        text: "ไม่สามารถแก้ไขรายการขณะออฟไลน์ได้",
+      });
+    }
 
     try {
       if (wasEditing) {
@@ -285,9 +436,8 @@ export default function App() {
       setItem("");
       setAmount("");
       setCategory(CATEGORIES[0]);
-      setOdometerStart("");
       setOdometerEnd("");
-      localStorage.setItem("lastOdometerEnd", "");
+      setDraftSplitBetween([paidBy]);
       dynaura.update(notificationId, {
         type: "success",
         title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
@@ -311,6 +461,12 @@ export default function App() {
   };
 
   const handleUpdateSplit = async (id, newSplit) => {
+    if (id === null) {
+      setDraftSplitBetween(newSplit);
+      setDidEditDraftSplit(true);
+      setActiveSplitExpense(null);
+      return true;
+    }
     if (pendingSplitId) return false;
     if (isOffline) {
       dynaura.warning({
@@ -365,6 +521,8 @@ export default function App() {
     setCategory(CATEGORIES[0]);
     setOdometerStart("");
     setOdometerEnd("");
+    setDidEditOdometerStart(false);
+    setDidEditDraftSplit(false);
   };
 
   const handleDelete = async (id) => {
@@ -627,6 +785,7 @@ export default function App() {
           refreshExpenses();
         }}
         MEMBERS={MEMBERS}
+        isOffline={isOffline}
         onOpenMemberModal={() => setShowMemberModal(true)}
       />
 
@@ -645,12 +804,24 @@ export default function App() {
           setPaidBy={(value) => {
             setPaidBy(value);
             localStorage.setItem("defaultPaidBy", value);
+            if (!editId && !didEditDraftSplit) setDraftSplitBetween([value]);
           }}
           members={MEMBERS}
           odometerStart={odometerStart}
           setOdometerStart={setOdometerStart}
+          setDidEditOdometerStart={setDidEditOdometerStart}
           odometerEnd={odometerEnd}
           setOdometerEnd={setOdometerEnd}
+          draftSplitBetween={draftSplitBetween}
+          onOpenSplit={() =>
+            setActiveSplitExpense({
+              __draft: true,
+              item_name: item.trim() || category,
+              amount: Number(amount) || 0,
+              paid_by: paidBy,
+              split_between: draftSplitBetween,
+            })
+          }
           isSubmitting={isSubmittingExpense}
           onSubmit={handleAddExpense}
           onCancel={cancelEdit}
@@ -695,6 +866,7 @@ export default function App() {
           onOpenPayment={setActivePayment}
           onOpenHistory={() => setShowHistory(true)}
           pendingSettlement={pendingSettlement}
+          isOffline={isOffline}
         />
       </main>
 
@@ -710,6 +882,7 @@ export default function App() {
           onRemove={handleRemoveMember}
           onUpdateDetails={handleUpdateMemberDetails}
           pendingMemberAction={pendingMemberAction}
+          isOffline={isOffline}
         />
       )}
       {activePayment && (
@@ -738,6 +911,7 @@ export default function App() {
           onClose={() => setShowHistory(false)}
           onUndo={handleUndoHistory}
           pendingHistoryId={pendingHistoryId}
+          isOffline={isOffline}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import { Edit2, Trash2, Users } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatMoney } from "../utils/trip";
 import useSwipeDrag from "../hooks/useSwipeDrag";
+import { dynaura } from "dynaura";
 
 export default function ExpenseItem({
   expense,
@@ -15,10 +16,13 @@ export default function ExpenseItem({
   isHighlighted, //  รับ State การ Highlight
   isPendingDelete,
   isPendingSplit,
+  isOffline,
 }) {
   const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
   const isOpen = swipedId === expense.id;
+  const isPendingSync = expense.isPendingSync === true;
+  const canInteract = !isOffline && !isPendingSync;
   const {
     drag,
     currentOffset,
@@ -30,7 +34,23 @@ export default function ExpenseItem({
     id: expense.id,
     isOpen,
     setOpen: setSwipedId,
+    canDrag: canInteract,
   });
+
+  const createdTime = expense.created_at
+    ? new Date(expense.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    : "";
+
+  const warnOffline = () =>
+    dynaura.warning({
+      title: "ออฟไลน์",
+      description: "ไม่สามารถแก้ไขหรือลบรายการขณะออฟไลน์ได้",
+      duration: 4000,
+    });
 
   //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
   useEffect(() => {
@@ -60,12 +80,16 @@ export default function ExpenseItem({
       <div className="absolute inset-y-0 right-3 flex items-center justify-center">
         <button
           onClick={() => {
+            if (!canInteract) {
+              warnOffline();
+              return;
+            }
             onDelete(expense.id);
             setSwipedId(null);
           }}
-          disabled={isPendingDelete}
+          disabled={isPendingDelete || !canInteract}
           className={`flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition ${
-            isPendingDelete
+            isPendingDelete || !canInteract
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : "bg-red-500 hover:bg-red-600"
           }`}
@@ -108,6 +132,16 @@ export default function ExpenseItem({
           <p className="mb-0.5 text-xs text-gray-400">
             จ่ายโดย:{" "}
             <span className="font-bold text-lime-400">{expense.paid_by}</span>
+            {createdTime && (
+              <span className="ml-1 text-[11px] font-normal text-gray-400">
+                {createdTime}
+              </span>
+            )}
+            {isPendingSync && (
+              <span className="ml-2 text-xs font-bold text-amber-400">
+                รอซิงค์
+              </span>
+            )}
           </p>
           <p className="font-medium text-gray-100">{expense.item_name}</p>
           <p className="text-xs text-gray-400">
@@ -132,13 +166,17 @@ export default function ExpenseItem({
           </p>
           <div className="relative z-20 flex items-center gap-2">
             <button
-              disabled={isPendingSplit}
+              disabled={isPendingSplit || !canInteract}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canInteract) {
+                  warnOffline();
+                  return;
+                }
                 onOpenSplitModal(expense);
               }}
               className={`flex h-10 w-10 items-center justify-center rounded-full border text-gray-400 transition ${
-                isPendingSplit
+                isPendingSplit || !canInteract
                   ? "cursor-not-allowed border-gray-500 bg-gray-500 shimmer"
                   : "border-gray-600 hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
               }`}
@@ -150,6 +188,10 @@ export default function ExpenseItem({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canInteract) {
+                  warnOffline();
+                  return;
+                }
                 onEdit(expense);
                 setSwipedId(null);
               }}

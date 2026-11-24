@@ -234,7 +234,7 @@ export default {
 ===== ./src/App.jsx =====
 
 import { WifiOff } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
 import { dynaura, Toaster } from "dynaura";
 import { CATEGORIES, HISTORY_CATEGORY, SWAL_THEME } from "./data/constants";
@@ -244,7 +244,9 @@ import {
   getStoredMemberDetails,
   getStoredMembers,
   getTodayISO,
+  getOfflineQueue,
   parseForUI,
+  saveOfflineQueue,
 } from "./utils/trip";
 import ExpenseForm from "./components/ExpenseForm";
 import ExpenseList from "./components/ExpenseList";
@@ -259,7 +261,7 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
-const version_number = "3.2.0";
+const version_number = "3.2.1";
 
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
@@ -277,15 +279,19 @@ export default function App() {
       members.includes(previous) ? previous : members[0] || "",
     );
   }, []);
+  const updateMemberDetailsFromSupabase = useCallback((details) => {
+    setMemberDetails(details);
+  }, []);
   const {
     members: MEMBERS,
     expenses,
+    setExpenses,
     isOffline,
     loading,
     isSyncing,
     refreshMembers,
     refreshExpenses,
-  } = useTripData(updatePaidByFromMembers);
+  } = useTripData(updatePaidByFromMembers, updateMemberDetailsFromSupabase);
 
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState({});
@@ -304,6 +310,10 @@ export default function App() {
   const [pendingHistoryId, setPendingHistoryId] = useState(null);
   const expenseSubmitLock = useRef(false);
   const settlementSubmitLock = useRef(false);
+  const syncOfflineQueueLock = useRef(false);
+  const [draftSplitBetween, setDraftSplitBetween] = useState([paidBy]);
+  const [didEditDraftSplit, setDidEditDraftSplit] = useState(false);
+  const [didEditOdometerStart, setDidEditOdometerStart] = useState(false);
   usePinchGuard();
 
   const [date, setDate] = useState(getTodayISO());
@@ -311,14 +321,81 @@ export default function App() {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(CATEGORIES[0]);
 
-  const [odometerStart, setOdometerStart] = useState(
-    () => localStorage.getItem("lastOdometerEnd") || "",
-  );
+  const [odometerStart, setOdometerStart] = useState("");
   const [odometerEnd, setOdometerEnd] = useState("");
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
   };
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (!navigator.onLine || syncOfflineQueueLock.current) return;
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+
+    syncOfflineQueueLock.current = true;
+    const sortedQueue = [...queue].sort(
+      (a, b) => new Date(a.created_at) - new Date(b.created_at),
+    );
+    const cleanPayloads = sortedQueue.map((item) => {
+      const payload = { ...item };
+      delete payload.id;
+      delete payload.isPendingSync;
+      return payload;
+    });
+
+    try {
+      const { error } = await supabase
+        .from("trip_expenses")
+        .insert(cleanPayloads);
+      if (error) throw error;
+
+      saveOfflineQueue([]);
+      await refreshExpenses();
+      dynaura.success({
+        title: "ซิงค์รายการออฟไลน์สำเร็จ",
+        description: `${sortedQueue.length} รายการ`,
+        duration: 4000,
+      });
+    } catch (error) {
+      dynaura.error({
+        title: "ซิงค์รายการออฟไลน์ไม่สำเร็จ",
+        description: error.message,
+        duration: 5000,
+      });
+    } finally {
+      syncOfflineQueueLock.current = false;
+    }
+  }, [refreshExpenses]);
+
+  useEffect(() => {
+    const handleOnline = () => syncOfflineQueue();
+    window.addEventListener("online", handleOnline);
+    if (navigator.onLine) syncOfflineQueue();
+    return () => window.removeEventListener("online", handleOnline);
+  }, [syncOfflineQueue]);
+
+  useEffect(() => {
+    if (editId || didEditOdometerStart) return;
+    const latestGasExpense = [...expenses]
+      .filter(
+        (expense) =>
+          expense.category === "ค่าน้ำมัน" &&
+          expense.odometer_end != null &&
+          expense.odometer_end !== "",
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      )[0];
+    if (latestGasExpense) {
+      setOdometerStart(String(latestGasExpense.odometer_end));
+    }
+  }, [expenses, editId, didEditOdometerStart]);
+
+  useEffect(() => {
+    if (!editId && !didEditDraftSplit) setDraftSplitBetween([paidBy]);
+  }, [paidBy, editId, didEditDraftSplit]);
 
   // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
@@ -341,7 +418,14 @@ export default function App() {
       });
       // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
       try {
-        const { error } = await supabase.from("trip_members").insert([{ name }]);
+        const { error } = await supabase.from("trip_members").insert([
+          {
+            name,
+            promptpay: details?.promptpay || null,
+            bank_id: details?.bankId || null,
+            bank_acc: details?.bankAcc || null,
+          },
+        ]);
         if (error) throw error;
         dynaura.update(notificationId, { progress: 0.72 });
 
@@ -372,16 +456,38 @@ export default function App() {
     }
   };
 
-  const handleUpdateMemberDetails = (name, details, showToast = true) => {
-    const updated = { ...memberDetails, [name]: details };
-    setMemberDetails(updated);
-    localStorage.setItem("memberDetails", JSON.stringify(updated));
-    if (showToast)
-      dynaura.success({
-        title: "บันทึกข้อมูลเรียบร้อย",
-        description: `ข้อมูลการชำระเงินของ ${name}`,
-        duration: 1000,
+  const handleUpdateMemberDetails = async (
+    name,
+    details,
+    showToast = true,
+  ) => {
+    try {
+      const { error } = await supabase
+        .from("trip_members")
+        .update({
+          promptpay: details.promptpay || null,
+          bank_id: details.bankId || null,
+          bank_acc: details.bankAcc || null,
+        })
+        .eq("name", name);
+      if (error) throw error;
+
+      const updated = { ...memberDetails, [name]: details };
+      setMemberDetails(updated);
+      localStorage.setItem("memberDetails", JSON.stringify(updated));
+      if (showToast)
+        dynaura.success({
+          title: "บันทึกข้อมูลเรียบร้อย",
+          description: `ข้อมูลการชำระเงินของ ${name}`,
+          duration: 1000,
+        });
+    } catch (error) {
+      dynaura.error({
+        title: "บันทึกข้อมูลไม่สำเร็จ",
+        description: error.message,
+        duration: 5000,
       });
+    }
   };
 
   const handleRemoveMember = async (name, hasDebt) => {
@@ -457,13 +563,6 @@ export default function App() {
   const handleAddExpense = async (event) => {
     event.preventDefault();
     if (expenseSubmitLock.current) return;
-    if (isOffline)
-      return Swal.fire({
-        ...SWAL_THEME,
-        icon: "warning",
-        title: "ออฟไลน์",
-        text: "ไม่สามารถบันทึกรายการขณะออฟไลน์ได้",
-      });
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0)
@@ -489,7 +588,8 @@ export default function App() {
       amount: numericAmount,
       category,
       paid_by: paidBy,
-      split_between: [paidBy],
+      split_between:
+        draftSplitBetween.length > 0 ? draftSplitBetween : [paidBy],
       odometer_start:
         category === "ค่าน้ำมัน" && odometerStart
           ? Number(odometerStart)
@@ -497,6 +597,57 @@ export default function App() {
       odometer_end:
         category === "ค่าน้ำมัน" && odometerEnd ? Number(odometerEnd) : null,
     };
+
+    if (isOffline && !editId) {
+      const offlineExpense = {
+        ...payload,
+        id: `offline_${crypto.randomUUID()}`,
+        isPendingSync: true,
+        created_at: new Date().toISOString(),
+      };
+      const queue = getOfflineQueue();
+      saveOfflineQueue([...queue, offlineExpense]);
+
+      const cachedData = localStorage.getItem("tripExpensesCache");
+      const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
+      const baseExpenses = cachedExpenses.filter(
+        (expense) => !expense.isPendingSync,
+      );
+      const mergedExpenses = [
+        ...baseExpenses,
+        ...queue,
+        offlineExpense,
+      ].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      );
+      setExpenses(mergedExpenses);
+      localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
+
+      setItem("");
+      setAmount("");
+      setCategory(CATEGORIES[0]);
+      setOdometerEnd("");
+      setDraftSplitBetween([paidBy]);
+      setDidEditDraftSplit(false);
+      setDidEditOdometerStart(false);
+      setDidEditDraftSplit(false);
+      setDidEditOdometerStart(false);
+      dynaura.success({
+        title: "บันทึกออฟไลน์แล้ว (รอซิงค์เมื่อมีเน็ต)",
+        description: `${formatMoney(numericAmount)} บาท`,
+        duration: 4000,
+      });
+      return;
+    }
+
+    if (isOffline) {
+      return Swal.fire({
+        ...SWAL_THEME,
+        icon: "warning",
+        title: "ออฟไลน์",
+        text: "ไม่สามารถแก้ไขรายการขณะออฟไลน์ได้",
+      });
+    }
 
     try {
       if (wasEditing) {
@@ -520,9 +671,8 @@ export default function App() {
       setItem("");
       setAmount("");
       setCategory(CATEGORIES[0]);
-      setOdometerStart("");
       setOdometerEnd("");
-      localStorage.setItem("lastOdometerEnd", "");
+      setDraftSplitBetween([paidBy]);
       dynaura.update(notificationId, {
         type: "success",
         title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
@@ -546,6 +696,12 @@ export default function App() {
   };
 
   const handleUpdateSplit = async (id, newSplit) => {
+    if (id === null) {
+      setDraftSplitBetween(newSplit);
+      setDidEditDraftSplit(true);
+      setActiveSplitExpense(null);
+      return true;
+    }
     if (pendingSplitId) return false;
     if (isOffline) {
       dynaura.warning({
@@ -600,6 +756,8 @@ export default function App() {
     setCategory(CATEGORIES[0]);
     setOdometerStart("");
     setOdometerEnd("");
+    setDidEditOdometerStart(false);
+    setDidEditDraftSplit(false);
   };
 
   const handleDelete = async (id) => {
@@ -862,6 +1020,7 @@ export default function App() {
           refreshExpenses();
         }}
         MEMBERS={MEMBERS}
+        isOffline={isOffline}
         onOpenMemberModal={() => setShowMemberModal(true)}
       />
 
@@ -880,12 +1039,24 @@ export default function App() {
           setPaidBy={(value) => {
             setPaidBy(value);
             localStorage.setItem("defaultPaidBy", value);
+            if (!editId && !didEditDraftSplit) setDraftSplitBetween([value]);
           }}
           members={MEMBERS}
           odometerStart={odometerStart}
           setOdometerStart={setOdometerStart}
+          setDidEditOdometerStart={setDidEditOdometerStart}
           odometerEnd={odometerEnd}
           setOdometerEnd={setOdometerEnd}
+          draftSplitBetween={draftSplitBetween}
+          onOpenSplit={() =>
+            setActiveSplitExpense({
+              __draft: true,
+              item_name: item.trim() || category,
+              amount: Number(amount) || 0,
+              paid_by: paidBy,
+              split_between: draftSplitBetween,
+            })
+          }
           isSubmitting={isSubmittingExpense}
           onSubmit={handleAddExpense}
           onCancel={cancelEdit}
@@ -930,6 +1101,7 @@ export default function App() {
           onOpenPayment={setActivePayment}
           onOpenHistory={() => setShowHistory(true)}
           pendingSettlement={pendingSettlement}
+          isOffline={isOffline}
         />
       </main>
 
@@ -945,6 +1117,7 @@ export default function App() {
           onRemove={handleRemoveMember}
           onUpdateDetails={handleUpdateMemberDetails}
           pendingMemberAction={pendingMemberAction}
+          isOffline={isOffline}
         />
       )}
       {activePayment && (
@@ -973,6 +1146,7 @@ export default function App() {
           onClose={() => setShowHistory(false)}
           onUndo={handleUndoHistory}
           pendingHistoryId={pendingHistoryId}
+          isOffline={isOffline}
         />
       )}
     </div>
@@ -982,7 +1156,7 @@ export default function App() {
 
 ===== ./src/components/ExpenseForm.jsx =====
 
-import { Edit2, Receipt } from "lucide-react";
+import { Edit2, Receipt, Users } from "lucide-react";
 import { CATEGORIES } from "../data/constants";
 import { getTodayISO } from "../utils/trip";
 
@@ -1007,6 +1181,9 @@ export default function ExpenseForm({
   onSubmit,
   onCancel,
   onAddMember,
+  draftSplitBetween,
+  onOpenSplit,
+  setDidEditOdometerStart,
 }) {
   return (
     <section
@@ -1066,7 +1243,10 @@ export default function ExpenseForm({
                   type="number"
                   placeholder="ไมล์เริ่มต้น"
                   value={odometerStart}
-                  onChange={(event) => setOdometerStart(event.target.value)}
+                  onChange={(event) => {
+                    setDidEditOdometerStart(true);
+                    setOdometerStart(event.target.value);
+                  }}
                   className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-xs text-gray-100 focus:border-amber-400 focus:outline-none"
                 />
               </div>
@@ -1093,30 +1273,42 @@ export default function ExpenseForm({
           onChange={(event) => setItem(event.target.value)}
           className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base text-gray-100 focus:border-lime-400 focus:outline-none lg:order-4 lg:col-span-2"
         />
-        <div className="grid grid-cols-1 gap-3 lg:order-5 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:order-5">
           <input
             type="number"
             inputMode="decimal"
             placeholder="0.00"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
+            className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-100 focus:border-lime-400 focus:outline-none"
           />
-          <select
-            value={paidBy}
-            onChange={(event) => {
-              if (event.target.value === "__ADD__") onAddMember();
-              else setPaidBy(event.target.value);
-            }}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
-          >
-            {members.map((member) => (
-              <option key={member} value={member}>
-                {member}
-              </option>
-            ))}
-            <option value="__ADD__">+ เพิ่มคนใหม่...</option>
-          </select>
+          <div className="grid grid-cols-3 gap-2">
+            <select
+              value={paidBy}
+              onChange={(event) => {
+                if (event.target.value === "__ADD__") onAddMember();
+                else setPaidBy(event.target.value);
+              }}
+              className="col-span-2 w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-base font-bold text-gray-300 focus:border-lime-400 focus:outline-none"
+            >
+              {members.map((member) => (
+                <option key={member} value={member}>
+                  {member}
+                </option>
+              ))}
+              <option value="__ADD__">+ เพิ่มคนใหม่...</option>
+            </select>
+            {!editId && (
+              <button
+                type="button"
+                onClick={onOpenSplit}
+                className="col-span-1 flex items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-2 text-sm font-bold text-lime-400"
+              >
+                <Users size={16} />
+                <span>หาร {draftSplitBetween.length} คน</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {editId ? (
@@ -1165,6 +1357,7 @@ import { Edit2, Trash2, Users } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatMoney } from "../utils/trip";
 import useSwipeDrag from "../hooks/useSwipeDrag";
+import { dynaura } from "dynaura";
 
 export default function ExpenseItem({
   expense,
@@ -1178,10 +1371,13 @@ export default function ExpenseItem({
   isHighlighted, //  รับ State การ Highlight
   isPendingDelete,
   isPendingSplit,
+  isOffline,
 }) {
   const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
   const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
   const isOpen = swipedId === expense.id;
+  const isPendingSync = expense.isPendingSync === true;
+  const canInteract = !isOffline && !isPendingSync;
   const {
     drag,
     currentOffset,
@@ -1193,7 +1389,23 @@ export default function ExpenseItem({
     id: expense.id,
     isOpen,
     setOpen: setSwipedId,
+    canDrag: canInteract,
   });
+
+  const createdTime = expense.created_at
+    ? new Date(expense.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    : "";
+
+  const warnOffline = () =>
+    dynaura.warning({
+      title: "ออฟไลน์",
+      description: "ไม่สามารถแก้ไขหรือลบรายการขณะออฟไลน์ได้",
+      duration: 4000,
+    });
 
   //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
   useEffect(() => {
@@ -1223,12 +1435,16 @@ export default function ExpenseItem({
       <div className="absolute inset-y-0 right-3 flex items-center justify-center">
         <button
           onClick={() => {
+            if (!canInteract) {
+              warnOffline();
+              return;
+            }
             onDelete(expense.id);
             setSwipedId(null);
           }}
-          disabled={isPendingDelete}
+          disabled={isPendingDelete || !canInteract}
           className={`flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition ${
-            isPendingDelete
+            isPendingDelete || !canInteract
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : "bg-red-500 hover:bg-red-600"
           }`}
@@ -1271,6 +1487,16 @@ export default function ExpenseItem({
           <p className="mb-0.5 text-xs text-gray-400">
             จ่ายโดย:{" "}
             <span className="font-bold text-lime-400">{expense.paid_by}</span>
+            {createdTime && (
+              <span className="ml-1 text-[11px] font-normal text-gray-400">
+                {createdTime}
+              </span>
+            )}
+            {isPendingSync && (
+              <span className="ml-2 text-xs font-bold text-amber-400">
+                รอซิงค์
+              </span>
+            )}
           </p>
           <p className="font-medium text-gray-100">{expense.item_name}</p>
           <p className="text-xs text-gray-400">
@@ -1295,13 +1521,17 @@ export default function ExpenseItem({
           </p>
           <div className="relative z-20 flex items-center gap-2">
             <button
-              disabled={isPendingSplit}
+              disabled={isPendingSplit || !canInteract}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canInteract) {
+                  warnOffline();
+                  return;
+                }
                 onOpenSplitModal(expense);
               }}
               className={`flex h-10 w-10 items-center justify-center rounded-full border text-gray-400 transition ${
-                isPendingSplit
+                isPendingSplit || !canInteract
                   ? "cursor-not-allowed border-gray-500 bg-gray-500 shimmer"
                   : "border-gray-600 hover:border-sky-400 hover:bg-sky-400/10 hover:text-sky-400"
               }`}
@@ -1313,6 +1543,10 @@ export default function ExpenseItem({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (!canInteract) {
+                  warnOffline();
+                  return;
+                }
                 onEdit(expense);
                 setSwipedId(null);
               }}
@@ -1352,6 +1586,7 @@ export default function ExpenseList({
   MEMBERS,
   pendingDeleteId,
   pendingSplitId,
+  isOffline,
 }) {
   useEffect(() => {
     const handleScroll = () => {
@@ -1431,6 +1666,7 @@ export default function ExpenseList({
                       MEMBERS={MEMBERS}
                       isPendingDelete={pendingDeleteId === expense.id}
                       isPendingSplit={pendingSplitId === expense.id}
+                      isOffline={isOffline}
                     />
                   ))}
                 </div>
@@ -1449,8 +1685,9 @@ import { History, RotateCcw, X } from "lucide-react";
 import { useEffect } from "react";
 import { formatMoney } from "../utils/trip";
 import ModalShell from "./ModalShell";
+import { dynaura } from "dynaura";
 
-export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId }) {
+export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId, isOffline }) {
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") onClose();
@@ -1498,10 +1735,20 @@ export default function HistoryModal({ expenses, onClose, onUndo, pendingHistory
                       ฿{formatMoney(expense.amount)}
                     </p>
                     <button
-                      onClick={() => onUndo(expense.id)}
-                      disabled={pendingHistoryId === expense.id}
+                      onClick={() => {
+                        if (isOffline) {
+                          dynaura.warning({
+                            title: "ออฟไลน์",
+                            description: "ไม่สามารถกู้คืนยอดขณะออฟไลน์ได้",
+                            duration: 4000,
+                          });
+                          return;
+                        }
+                        onUndo(expense.id);
+                      }}
+                      disabled={pendingHistoryId === expense.id || isOffline}
                       className={`ml-2 flex items-center gap-1 rounded-3xl border px-2 py-1 text-xs transition ${
-                        pendingHistoryId === expense.id
+                        pendingHistoryId === expense.id || isOffline
                           ? "cursor-not-allowed border-gray-500 bg-gray-500 text-gray-300 shimmer"
                           : "border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-gray-950"
                       }`}
@@ -1522,7 +1769,7 @@ export default function HistoryModal({ expenses, onClose, onUndo, pendingHistory
 ===== ./src/components/MemberItem.jsx =====
 
 import { Edit2, Save, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BANKS } from "../data/constants";
 import useSwipeDrag from "../hooks/useSwipeDrag";
 import { dynaura } from "dynaura";
@@ -1540,12 +1787,30 @@ export default function MemberItem({
   onEdit,
   setShowNewPayForm,
   isPending,
+  isOffline,
 }) {
   const [form, setForm] = useState({
     promptpay: details?.promptpay || "",
     bankId: details?.bankId || "kbank",
     bankAcc: details?.bankAcc || "",
   });
+
+  useEffect(() => {
+    if (isEditing) {
+      setForm({
+        promptpay: details?.promptpay || "",
+        bankId: details?.bankId || "kbank",
+        bankAcc: details?.bankAcc || "",
+      });
+    }
+  }, [isEditing, details]);
+
+  const warnOffline = () =>
+    dynaura.warning({
+      title: "ออฟไลน์",
+      description: "ไม่สามารถแก้ไขหรือลบสมาชิกขณะออฟไลน์ได้",
+      duration: 4000,
+    });
 
   const isOpen = swipedMember === member;
   const {
@@ -1568,10 +1833,16 @@ export default function MemberItem({
       {/* 💻 [Desktop View] ปุ่มลบโชว์ไว้ตลอดทางด้านขวา ไม่ต้องปัด */}
       <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
         <button
-          onClick={() => onRemove(member, hasDebt)}
-          disabled={isPending}
+          onClick={() => {
+            if (isOffline) {
+              warnOffline();
+              return;
+            }
+            onRemove(member, hasDebt);
+          }}
+          disabled={isPending || isOffline}
           className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
-            isPending
+            isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
@@ -1587,12 +1858,16 @@ export default function MemberItem({
       <div className="absolute inset-y-0 right-3 flex md:hidden items-center justify-center">
         <button
           onClick={() => {
+            if (isOffline) {
+              warnOffline();
+              return;
+            }
             onRemove(member, hasDebt);
             setSwipedMember(null);
           }}
-          disabled={isPending}
+          disabled={isPending || isOffline}
           className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
-            isPending
+            isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
@@ -1632,10 +1907,15 @@ export default function MemberItem({
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
+              if (isOffline) {
+                warnOffline();
+                return;
+              }
               onEdit();
               setShowNewPayForm(false); 
             }}
             className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
+            disabled={isOffline}
           >
             <Edit2 size={16} />
           </button>
@@ -1702,6 +1982,10 @@ export default function MemberItem({
           </div>
           <button
             onClick={() => {
+              if (isOffline) {
+                warnOffline();
+                return;
+              }
               const validation = validatePromptPay(form.promptpay);
               if (!validation.valid) {
                 dynaura.warning({
@@ -1717,7 +2001,10 @@ export default function MemberItem({
               });
               onEdit(); // ปิดฟอร์มแก้ไขหลังจากกดบันทึก
             }}
-            className="flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+            disabled={isOffline}
+            className={`flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 ${
+              isOffline ? "opacity-50 cursor-not-allowed" : ""
+            }`}
           >
             <Save size={16} /> บันทึกข้อมูล
           </button>
@@ -1747,6 +2034,7 @@ export default function MemberModal({
   onRemove,
   onUpdateDetails,
   pendingMemberAction,
+  isOffline,
 }) {
   const [newName, setNewName] = useState("");
   const [showNewPayForm, setShowNewPayForm] = useState(false);
@@ -1768,6 +2056,14 @@ export default function MemberModal({
 
   const handleAdd = (e) => {
     e.preventDefault();
+    if (isOffline) {
+      dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+      return;
+    }
     const trimmed = newName.trim();
     if (trimmed) {
       let paymentDetails = null;
@@ -1823,7 +2119,7 @@ export default function MemberModal({
               />
               <button
                 type="submit"
-                disabled={!newName.trim() || Boolean(pendingMemberAction)}
+                disabled={!newName.trim() || Boolean(pendingMemberAction) || isOffline}
                 className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-bold text-gray-950 transition ${
                   pendingMemberAction
                     ? "cursor-not-allowed bg-gray-500 shimmer"
@@ -1927,6 +2223,7 @@ export default function MemberModal({
                   setSwipedMember={setSwipedMember}
                   isEditing={editingMember === member}
                   isPending={pendingMemberAction === member}
+                  isOffline={isOffline}
                   onEdit={() =>
                     setEditingMember(editingMember === member ? null : member)
                   }
@@ -1968,8 +2265,8 @@ export default function ModalShell({
 
 ===== ./src/components/PaymentModal.jsx =====
 
-import { CheckCircle, Copy } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle, Copy, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
 import {
   formatMoney,
@@ -2004,6 +2301,14 @@ export default function PaymentModal({
   const selectedBank = BANKS.find(
     (b) => b.id === (details.bankId || form.bankId),
   );
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   const handleSaveDetails = () => {
     if (tab === "qr") {
@@ -2051,7 +2356,15 @@ export default function PaymentModal({
       panelClassName="max-w-sm"
       onClose={onClose}
     >
-        <div className="bg-gray-800 p-4 text-center">
+        <div className="relative bg-gray-800 p-4 text-center">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 text-gray-400 hover:text-gray-200"
+            aria-label="ปิดหน้าต่าง"
+          >
+            <X size={20} />
+          </button>
           <p className="text-sm text-gray-400">ชำระเงินให้</p>
           <h2 className="text-xl font-bold text-lime-400">{to}</h2>
           <p className="mt-1 text-3xl font-bold text-white">
@@ -2193,17 +2506,11 @@ export default function PaymentModal({
             </div>
           )}
 
-          <div className="mt-6 flex gap-2">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm font-bold text-gray-300 hover:bg-gray-700 transition"
-            >
-              ปิดหน้าต่าง
-            </button>
+          <div className="mt-6">
             <button
               onClick={handleConfirmPay}
               disabled={isSubmitting}
-              className={`flex-2 flex items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
+              className={`mx-auto flex w-4/5 items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
                 isSubmitting
                   ? "cursor-not-allowed bg-gray-500 shimmer"
                   : "bg-lime-400 hover:bg-lime-300"
@@ -2222,12 +2529,14 @@ export default function PaymentModal({
 
 import { ArrowRight, CheckCircle, History, Users } from "lucide-react";
 import { formatMoney } from "../utils/trip";
+import { dynaura } from "dynaura";
 
 export default function SettlementSection({
   settlements,
   onOpenPayment,
   onOpenHistory,
   pendingSettlement,
+  isOffline,
 }) {
   return (
     <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
@@ -2267,10 +2576,20 @@ export default function SettlementSection({
                 </div>
               </div>
               <button
-                onClick={() => onOpenPayment(transfer)}
-                disabled={Boolean(pendingSettlement)}
+                onClick={() => {
+                  if (isOffline) {
+                    dynaura.warning({
+                      title: "ออฟไลน์",
+                      description: "ไม่สามารถเคลียร์ยอดขณะออฟไลน์ได้",
+                      duration: 4000,
+                    });
+                    return;
+                  }
+                  onOpenPayment(transfer);
+                }}
+                disabled={Boolean(pendingSettlement) || isOffline}
                 className={`m-auto flex w-10/12 items-center justify-center gap-1 rounded py-2 text-xs text-gray-950 shadow-sm transition ${
-                  pendingSettlement
+                  pendingSettlement || isOffline
                     ? "cursor-not-allowed bg-gray-500 shimmer"
                     : "bg-lime-500 hover:bg-lime-300"
                 }`}
@@ -2389,7 +2708,9 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
               disabled={isSaving}
               onClick={async () => {
                 setIsSaving(true);
-                const success = await onSave(expense.id, selectedSplit);
+                const success = expense.__draft
+                  ? await onSave(null, selectedSplit)
+                  : await onSave(expense.id, selectedSplit);
                 setIsSaving(false);
                 if (success) onClose();
               }}
@@ -2411,7 +2732,7 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
 ===== ./src/components/ThemeMenu.jsx =====
 
 import { Palette } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 
 const THEMES = [
@@ -2424,6 +2745,19 @@ const THEMES = [
 export default function ThemeMenu() {
   const [open, setOpen] = useState(false);
   const { setTheme } = useTheme();
+
+  useEffect(() => {
+    if (!open) return;
+    const closeMenu = () => setOpen(false);
+    window.addEventListener("pointerdown", closeMenu);
+    window.addEventListener("scroll", closeMenu, { passive: true });
+    window.addEventListener("touchmove", closeMenu, { passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", closeMenu);
+      window.removeEventListener("scroll", closeMenu);
+      window.removeEventListener("touchmove", closeMenu);
+    };
+  }, [open]);
 
   return (
     <div
@@ -2467,6 +2801,7 @@ export default function ThemeMenu() {
 import { Check, RefreshCw, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatMoney } from "../utils/trip";
+import { dynaura } from "dynaura";
 
 export default function TripHeader({
   totalExpense,
@@ -2474,6 +2809,7 @@ export default function TripHeader({
   onRefresh,
   MEMBERS,
   onOpenMemberModal,
+  isOffline,
 }) {
   const [syncStatus, setSyncStatus] = useState("idle");
   useEffect(() => {
@@ -2499,9 +2835,21 @@ export default function TripHeader({
           </span>
         </button>
         <button
-          onClick={onRefresh}
-          disabled={syncStatus === "syncing"}
-          className="absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+          onClick={() => {
+            if (isOffline) {
+              dynaura.warning({
+                title: "ออฟไลน์",
+                description: "ไม่สามารถรีเฟรชขณะออฟไลน์ได้",
+                duration: 4000,
+              });
+              return;
+            }
+            onRefresh();
+          }}
+          disabled={syncStatus === "syncing" || isOffline}
+          className={`absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700 ${
+            isOffline ? "opacity-50 cursor-not-allowed" : ""
+          }`}
         >
           {syncStatus === "syncing" ? (
             <RefreshCw size={26} className="animate-spin text-gray-400" />
@@ -2845,10 +3193,10 @@ export default function useSwipeDrag({
 ===== ./src/hooks/useTripData.js =====
 
 import { useCallback, useEffect, useState } from "react";
-import { getStoredMembers } from "../utils/trip";
+import { getOfflineQueue, getStoredMembers } from "../utils/trip";
 import { supabase } from "../services/supabase";
 
-export default function useTripData(onMembersUpdated) {
+export default function useTripData(onMembersUpdated, onMemberDetailsUpdated) {
   const [members, setMembers] = useState(getStoredMembers);
   const [expenses, setExpenses] = useState([]);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -2860,21 +3208,41 @@ export default function useTripData(onMembersUpdated) {
 
     const { data } = await supabase
       .from("trip_members")
-      .select("name")
+      .select("name, promptpay, bank_id, bank_acc")
       .order("created_at", { ascending: true });
 
     if (data && data.length > 0) {
       const fetchedMembers = data.map((member) => member.name);
+      const fetchedDetails = data.reduce((details, member) => {
+        details[member.name] = {
+          promptpay: member.promptpay || "",
+          bankId: member.bank_id || "kbank",
+          bankAcc: member.bank_acc || "",
+        };
+        return details;
+      }, {});
       setMembers(fetchedMembers);
       localStorage.setItem("tripMembers", JSON.stringify(fetchedMembers));
+      localStorage.setItem("memberDetails", JSON.stringify(fetchedDetails));
       onMembersUpdated(fetchedMembers);
+      if (onMemberDetailsUpdated) onMemberDetailsUpdated(fetchedDetails);
     }
-  }, [onMembersUpdated]);
+  }, [onMembersUpdated, onMemberDetailsUpdated]);
 
   const refreshExpenses = useCallback(async () => {
     if (!navigator.onLine) {
       const cachedData = localStorage.getItem("tripExpensesCache");
-      if (cachedData) setExpenses(JSON.parse(cachedData));
+      const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
+      const queuedExpenses = getOfflineQueue();
+      const mergedById = new Map();
+      [...cachedExpenses, ...queuedExpenses].forEach((expense) => {
+        mergedById.set(expense.id, expense);
+      });
+      const mergedExpenses = [...mergedById.values()].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      );
+      setExpenses(mergedExpenses);
+      localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
       return;
     }
 
@@ -2946,6 +3314,7 @@ export default function useTripData(onMembersUpdated) {
     members,
     setMembers,
     expenses,
+    setExpenses,
     isOffline,
     loading,
     isSyncing,

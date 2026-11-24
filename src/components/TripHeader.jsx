@@ -1,6 +1,7 @@
 import { Check, RefreshCw, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatMoney } from "../utils/trip";
+import { dynaura } from "dynaura";
 
 export default function TripHeader({
   totalExpense,
@@ -8,6 +9,7 @@ export default function TripHeader({
   onRefresh,
   MEMBERS,
   onOpenMemberModal,
+  isOffline,
 }) {
   const [syncStatus, setSyncStatus] = useState("idle");
   useEffect(() => {
@@ -33,9 +35,21 @@ export default function TripHeader({
           </span>
         </button>
         <button
-          onClick={onRefresh}
-          disabled={syncStatus === "syncing"}
-          className="absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700"
+          onClick={() => {
+            if (isOffline) {
+              dynaura.warning({
+                title: "ออฟไลน์",
+                description: "ไม่สามารถรีเฟรชขณะออฟไลน์ได้",
+                duration: 4000,
+              });
+              return;
+            }
+            onRefresh();
+          }}
+          disabled={syncStatus === "syncing" || isOffline}
+          className={`absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700 ${
+            isOffline ? "opacity-50 cursor-not-allowed" : ""
+          }`}
         >
           {syncStatus === "syncing" ? (
             <RefreshCw size={26} className="animate-spin text-gray-400" />

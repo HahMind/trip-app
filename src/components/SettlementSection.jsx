@@ -1,11 +1,13 @@
 import { ArrowRight, CheckCircle, History, Users } from "lucide-react";
 import { formatMoney } from "../utils/trip";
+import { dynaura } from "dynaura";
 
 export default function SettlementSection({
   settlements,
   onOpenPayment,
   onOpenHistory,
   pendingSettlement,
+  isOffline,
 }) {
   return (
     <section className="rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-sm">
@@ -45,10 +47,20 @@ export default function SettlementSection({
                 </div>
               </div>
               <button
-                onClick={() => onOpenPayment(transfer)}
-                disabled={Boolean(pendingSettlement)}
+                onClick={() => {
+                  if (isOffline) {
+                    dynaura.warning({
+                      title: "ออฟไลน์",
+                      description: "ไม่สามารถเคลียร์ยอดขณะออฟไลน์ได้",
+                      duration: 4000,
+                    });
+                    return;
+                  }
+                  onOpenPayment(transfer);
+                }}
+                disabled={Boolean(pendingSettlement) || isOffline}
                 className={`m-auto flex w-10/12 items-center justify-center gap-1 rounded py-2 text-xs text-gray-950 shadow-sm transition ${
-                  pendingSettlement
+                  pendingSettlement || isOffline
                     ? "cursor-not-allowed bg-gray-500 shimmer"
                     : "bg-lime-500 hover:bg-lime-300"
                 }`}

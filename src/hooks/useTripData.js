@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { getStoredMembers } from "../utils/trip";
+import { getOfflineQueue, getStoredMembers } from "../utils/trip";
 import { supabase } from "../services/supabase";
 
-export default function useTripData(onMembersUpdated) {
+export default function useTripData(onMembersUpdated, onMemberDetailsUpdated) {
   const [members, setMembers] = useState(getStoredMembers);
   const [expenses, setExpenses] = useState([]);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -14,21 +14,41 @@ export default function useTripData(onMembersUpdated) {
 
     const { data } = await supabase
       .from("trip_members")
-      .select("name")
+      .select("name, promptpay, bank_id, bank_acc")
       .order("created_at", { ascending: true });
 
     if (data && data.length > 0) {
       const fetchedMembers = data.map((member) => member.name);
+      const fetchedDetails = data.reduce((details, member) => {
+        details[member.name] = {
+          promptpay: member.promptpay || "",
+          bankId: member.bank_id || "kbank",
+          bankAcc: member.bank_acc || "",
+        };
+        return details;
+      }, {});
       setMembers(fetchedMembers);
       localStorage.setItem("tripMembers", JSON.stringify(fetchedMembers));
+      localStorage.setItem("memberDetails", JSON.stringify(fetchedDetails));
       onMembersUpdated(fetchedMembers);
+      if (onMemberDetailsUpdated) onMemberDetailsUpdated(fetchedDetails);
     }
-  }, [onMembersUpdated]);
+  }, [onMembersUpdated, onMemberDetailsUpdated]);
 
   const refreshExpenses = useCallback(async () => {
     if (!navigator.onLine) {
       const cachedData = localStorage.getItem("tripExpensesCache");
-      if (cachedData) setExpenses(JSON.parse(cachedData));
+      const cachedExpenses = cachedData ? JSON.parse(cachedData) : [];
+      const queuedExpenses = getOfflineQueue();
+      const mergedById = new Map();
+      [...cachedExpenses, ...queuedExpenses].forEach((expense) => {
+        mergedById.set(expense.id, expense);
+      });
+      const mergedExpenses = [...mergedById.values()].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      );
+      setExpenses(mergedExpenses);
+      localStorage.setItem("tripExpensesCache", JSON.stringify(mergedExpenses));
       return;
     }
 
@@ -100,6 +120,7 @@ export default function useTripData(onMembersUpdated) {
     members,
     setMembers,
     expenses,
+    setExpenses,
     isOffline,
     loading,
     isSyncing,

@@ -1,5 +1,5 @@
-import { CheckCircle, Copy } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle, Copy, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BANKS, SWAL_THEME } from "../data/constants";
 import {
   formatMoney,
@@ -34,6 +34,14 @@ export default function PaymentModal({
   const selectedBank = BANKS.find(
     (b) => b.id === (details.bankId || form.bankId),
   );
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   const handleSaveDetails = () => {
     if (tab === "qr") {
@@ -81,7 +89,15 @@ export default function PaymentModal({
       panelClassName="max-w-sm"
       onClose={onClose}
     >
-        <div className="bg-gray-800 p-4 text-center">
+        <div className="relative bg-gray-800 p-4 text-center">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 text-gray-400 hover:text-gray-200"
+            aria-label="ปิดหน้าต่าง"
+          >
+            <X size={20} />
+          </button>
           <p className="text-sm text-gray-400">ชำระเงินให้</p>
           <h2 className="text-xl font-bold text-lime-400">{to}</h2>
           <p className="mt-1 text-3xl font-bold text-white">
@@ -223,17 +239,11 @@ export default function PaymentModal({
             </div>
           )}
 
-          <div className="mt-6 flex gap-2">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm font-bold text-gray-300 hover:bg-gray-700 transition"
-            >
-              ปิดหน้าต่าง
-            </button>
+          <div className="mt-6">
             <button
               onClick={handleConfirmPay}
               disabled={isSubmitting}
-              className={`flex-2 flex items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
+              className={`mx-auto flex w-4/5 items-center justify-center gap-1 rounded-lg py-3 text-sm font-bold text-gray-950 transition ${
                 isSubmitting
                   ? "cursor-not-allowed bg-gray-500 shimmer"
                   : "bg-lime-400 hover:bg-lime-300"

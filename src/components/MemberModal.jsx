@@ -15,6 +15,7 @@ export default function MemberModal({
   onRemove,
   onUpdateDetails,
   pendingMemberAction,
+  isOffline,
 }) {
   const [newName, setNewName] = useState("");
   const [showNewPayForm, setShowNewPayForm] = useState(false);
@@ -36,6 +37,14 @@ export default function MemberModal({
 
   const handleAdd = (e) => {
     e.preventDefault();
+    if (isOffline) {
+      dynaura.warning({
+        title: "ออฟไลน์",
+        description: "ไม่สามารถเพิ่มสมาชิกขณะออฟไลน์ได้",
+        duration: 4000,
+      });
+      return;
+    }
     const trimmed = newName.trim();
     if (trimmed) {
       let paymentDetails = null;
@@ -91,7 +100,7 @@ export default function MemberModal({
               />
               <button
                 type="submit"
-                disabled={!newName.trim() || Boolean(pendingMemberAction)}
+                disabled={!newName.trim() || Boolean(pendingMemberAction) || isOffline}
                 className={`flex items-center gap-1 rounded-lg px-4 py-2 text-sm font-bold text-gray-950 transition ${
                   pendingMemberAction
                     ? "cursor-not-allowed bg-gray-500 shimmer"
@@ -195,6 +204,7 @@ export default function MemberModal({
                   setSwipedMember={setSwipedMember}
                   isEditing={editingMember === member}
                   isPending={pendingMemberAction === member}
+                  isOffline={isOffline}
                   onEdit={() =>
                     setEditingMember(editingMember === member ? null : member)
                   }

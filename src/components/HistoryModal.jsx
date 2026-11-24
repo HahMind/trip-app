@@ -2,8 +2,9 @@ import { History, RotateCcw, X } from "lucide-react";
 import { useEffect } from "react";
 import { formatMoney } from "../utils/trip";
 import ModalShell from "./ModalShell";
+import { dynaura } from "dynaura";
 
-export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId }) {
+export default function HistoryModal({ expenses, onClose, onUndo, pendingHistoryId, isOffline }) {
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") onClose();
@@ -51,10 +52,20 @@ export default function HistoryModal({ expenses, onClose, onUndo, pendingHistory
                       ฿{formatMoney(expense.amount)}
                     </p>
                     <button
-                      onClick={() => onUndo(expense.id)}
-                      disabled={pendingHistoryId === expense.id}
+                      onClick={() => {
+                        if (isOffline) {
+                          dynaura.warning({
+                            title: "ออฟไลน์",
+                            description: "ไม่สามารถกู้คืนยอดขณะออฟไลน์ได้",
+                            duration: 4000,
+                          });
+                          return;
+                        }
+                        onUndo(expense.id);
+                      }}
+                      disabled={pendingHistoryId === expense.id || isOffline}
                       className={`ml-2 flex items-center gap-1 rounded-3xl border px-2 py-1 text-xs transition ${
-                        pendingHistoryId === expense.id
+                        pendingHistoryId === expense.id || isOffline
                           ? "cursor-not-allowed border-gray-500 bg-gray-500 text-gray-300 shimmer"
                           : "border-sky-500/30 bg-sky-500/10 text-sky-400 hover:bg-sky-500 hover:text-gray-950"
                       }`}
