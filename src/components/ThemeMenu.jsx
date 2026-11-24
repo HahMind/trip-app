@@ -4,7 +4,7 @@ import { useTheme } from "../context/ThemeContext";
 
 const THEMES = [
   { id: "dark", color: "#111827", label: "ธีมเขียวดำ", transform: "translate(-8px, -132px)" },
-  { id: "light", color: "#bfe8cf", label: "ธีมเขียวอ่อน-ขาว", transform: "translate(-74px, -112px)" },
+  { id: "light", color: "#55423d", label: "ธีม Brown", transform: "translate(-74px, -112px)" },
   { id: "purple", color: "#ff8ba7", label: "ธีมครีม-คอรัล", transform: "translate(-126px, -70px)" },
   { id: "pink", color: "#fec7d7", label: "ธีมชมพู", transform: "translate(-166px, -10px)" },
 ];

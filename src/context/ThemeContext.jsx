@@ -14,7 +14,7 @@ export function ThemeProvider({ children }) {
     const themeColors = {
       dark: "#111827",
       pink: "#fec7d7",
-      light: "#f8fcf9",
+      light: "#55423d",
       purple: "#faeee7",
     };
     const themeColor = themeColors[theme] || themeColors.dark;

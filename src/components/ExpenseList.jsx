@@ -34,8 +34,8 @@ export default function ExpenseList({
       onClick={() => setSwipedId(null)}
     >
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-bold text-gray-100">
-          <Receipt size={20} /> <h2>รายการ ({expenses.length})</h2>
+        <div className="flex items-center gap-2 font-bold text-gray-300">
+          <Receipt size={0} /> <h2>รายการ ({expenses.length})</h2>
         </div>
         <button
           onClick={onToggleExpanded}
@@ -57,13 +57,13 @@ export default function ExpenseList({
           {Object.keys(groupedExpenses).map((date) => (
             <div
               key={date}
-              className="overflow-hidden rounded-lg border border-gray-700 bg-gray-900 shadow-sm"
+              className="overflow-hidden rounded-xl border border-gray-700 bg-gray-900 shadow-sm"
             >
               <button
                 onClick={() => onToggleDate(date)}
-                className="relative z-20 flex w-full items-center justify-between rounded-t-lg border-b-2 border-gray-700 bg-gray-700 p-3 hover:bg-gray-600"
+                className="expense-date-header relative z-20 flex w-full items-center justify-between  border-b-2 border-gray-700 bg-[#374151] p-3 hover:bg-[#374151]"
               >
-                <div className="flex items-center gap-2 font-bold text-gray-100">
+                <div className="flex items-center gap-2 font-bold text-gray-300">
                   {collapsedDates[date] ? (
                     <FolderClosed size={16} className="text-lime-400" />
                   ) : (

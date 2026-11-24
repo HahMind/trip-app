@@ -22,31 +22,31 @@ html[data-theme="pink"],
   --theme-600: #d9d4e7;
   --theme-text: #0e172c;
   --theme-text-strong: #0e172c;
-  --theme-text-muted: #0e172c;
+  --theme-text-muted: #270e2c;
   --theme-accent: #a786df;
   --theme-accent-hover: #9274cf;
   --theme-accent-soft: #d9d4e7;
 }
 
-/* Green + white theme */
+
 html[data-theme="light"],
 [data-theme="light"] {
-  --theme-page: #edf7f1;
-  --theme-base: #e5f1ea;
-  --theme-950: #edf7f1;
-  --theme-900: #f8fcf9;
-  --theme-800: #edf5f1;
-  --theme-700: #d0dfd6;
-  --theme-600: #b7cbbf;
-  --theme-text: #10251d;
-  --theme-text-strong: #071812;
-  --theme-text-muted: #3f6254;
-  --theme-accent: #4d9f7a;
-  --theme-accent-hover: #69b591;
-  --theme-accent-soft: #dcefe5;
+  --theme-page: #55423d;
+  --theme-base: #55423d;
+  --theme-950: #55423d;
+  --theme-900: #fff3ec;
+  --theme-800: #fff3ec;
+  --theme-700: #140d0b;
+  --theme-600: #ffc0ad;
+  --theme-text: #fff3ec;
+  --theme-text-strong: #000000;
+  --theme-text-muted: #d45d19;
+  --theme-accent: #eb3f0b;
+  --theme-accent-hover: #e78fb3;
+  --theme-accent-soft: #9656a1;
 }
 
-/* Warm cream + coral theme */
+
 html[data-theme="purple"],
 [data-theme="purple"] {
   --theme-page: #faeee7;
@@ -295,6 +295,28 @@ html, body {
   color: #fffffe !important;
 }
 
+[data-theme="light"] .bg-lime-400,
+[data-theme="light"] .bg-lime-500 {
+  background-color: #ffc0ad !important;
+}
+
+[data-theme="light"] .text-lime-400 {
+  color: #e78fb3 !important;
+}
+
+[data-theme="light"] .text-gray-950 {
+  color: #271c19 !important;
+}
+
+[data-theme="light"] .rounded-xl.border,
+[data-theme="light"] .rounded-lg.border,
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] button {
+  border-width: 2px;
+  border-color: #140d0b;
+}
+
 [data-theme="purple"] .text-gray-950 {
   color: #33272a !important;
 }
@@ -318,4 +340,13 @@ html, body {
 [data-theme="light"] .swal2-html-container,
 [data-theme="purple"] .swal2-html-container {
   color: var(--theme-text-strong) !important;
+}
+
+[data-theme="light"] .expense-date-header,
+[data-theme="purple"] .expense-date-header,
+[data-theme="pink"] .expense-date-header {
+  background-color: #d1d5db !important;
+  border-top-left-radius: 10px  !important;
+  border-top-right-radius: 10px  !important;
+  border-width: 0.5px  !important;
 }
