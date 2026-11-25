@@ -36,7 +36,7 @@ export default function ExpenseList({
     >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-gray-300">
-          <Receipt size={0} /> <h2>รายการ ({expenses.length})</h2>
+           <h2>รายการ ({expenses.length})</h2>
         </div>
         <button
           onClick={onToggleExpanded}

@@ -49,7 +49,7 @@ export default function SettlementSection({
                 <button
                   type="button"
                   onClick={() => onOpenDetails(transfer)}
-                  className="flex flex-1 items-center justify-center gap-1 rounded border border-gray-600 bg-gray-900 py-2 text-xs font-medium text-gray-100 shadow-sm transition hover:bg-gray-700"
+                  className="flex flex-1 items-center justify-center gap-1 rounded border border-gray-600 bg-gray-900 py-2 text-xs font-medium text-gray-100 shadow-sm transition hover:cursor-pointer hover:scale-102"
                 >
                   <FileText size={14} /> รายละเอียด
                 </button>
