@@ -1,23 +1,32 @@
 import { useMemo } from "react";
 import { HISTORY_CATEGORY } from "../data/constants";
 
-const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundMoney = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 const parseExpenseTimestamp = (expense) => {
   let dateScore = 0;
-  if (typeof expense.expense_date === "string" && expense.expense_date.includes("/")) {
+  if (
+    typeof expense.expense_date === "string" &&
+    expense.expense_date.includes("/")
+  ) {
     const [day, month, year] = expense.expense_date.split("/").map(Number);
     if (day && month && year) {
       dateScore = new Date(year, month - 1, day).getTime();
     }
   }
 
-  const createdScore = expense.created_at ? new Date(expense.created_at).getTime() : 0;
+  const createdScore = expense.created_at
+    ? new Date(expense.created_at).getTime()
+    : 0;
   const fallbackId = Number(expense.id) || 0;
 
   return {
     dateScore: Number.isFinite(dateScore) ? dateScore : 0,
-    timeScore: Number.isFinite(createdScore) && createdScore > 0 ? createdScore : fallbackId,
+    timeScore:
+      Number.isFinite(createdScore) && createdScore > 0
+        ? createdScore
+        : fallbackId,
   };
 };
 
@@ -34,7 +43,9 @@ const getValidSplitters = (expense, members) => {
   const configuredSplit = Array.isArray(expense.split_between)
     ? expense.split_between
     : [];
-  const validSplit = configuredSplit.filter((member) => members.includes(member));
+  const validSplit = configuredSplit.filter((member) =>
+    members.includes(member),
+  );
   if (validSplit.length > 0) return validSplit;
   if (members.includes(expense.paid_by)) return [expense.paid_by];
   return members.length > 0 ? [members[0]] : [];
@@ -64,7 +75,9 @@ export default function useSettlements(expenses, members) {
           const splitters = getValidSplitters(expense, members);
           if (splitters.length === 0) return;
 
-          const shareAmount = roundMoney(Number(expense.amount) / splitters.length);
+          const shareAmount = roundMoney(
+            Number(expense.amount) / splitters.length,
+          );
           if (shareAmount <= 0) return;
 
           if (expense.paid_by === personA && splitters.includes(personB)) {
@@ -73,7 +86,10 @@ export default function useSettlements(expenses, members) {
               splitCount: splitters.length,
               shareAmount,
             });
-          } else if (expense.paid_by === personB && splitters.includes(personA)) {
+          } else if (
+            expense.paid_by === personB &&
+            splitters.includes(personA)
+          ) {
             paidByBForA.push({
               ...expense,
               splitCount: splitters.length,
@@ -89,7 +105,28 @@ export default function useSettlements(expenses, members) {
           paidByBForA.reduce((sum, item) => sum + item.shareAmount, 0),
         );
 
-        const diff = roundMoney(totalAForB - totalBForA);
+        const pairHistory = historyExpenses.filter(
+          (item) =>
+            item.item_name.includes(`${personA} -> ${personB}`) ||
+            item.item_name.includes(`${personB} -> ${personA}`),
+        );
+
+        const settledByBToA = roundMoney(
+          pairHistory
+            .filter((item) => item.item_name.includes(`${personB} -> ${personA}`))
+            .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        );
+
+        const settledByAToB = roundMoney(
+          pairHistory
+            .filter((item) => item.item_name.includes(`${personA} -> ${personB}`))
+            .reduce((sum, item) => sum + Number(item.amount || 0), 0),
+        );
+
+        // diff > 0 หมายถึง B ยังค้างจ่าย A อยู่สุทธิ
+        const diff = roundMoney(
+          totalAForB - totalBForA - settledByBToA + settledByAToB,
+        );
         if (Math.abs(diff) <= 0.005) continue;
 
         const isBOwesA = diff > 0;
@@ -107,13 +144,7 @@ export default function useSettlements(expenses, members) {
         const positiveTotal = isBOwesA ? totalAForB : totalBForA;
         const negativeTotal = isBOwesA ? totalBForA : totalAForB;
 
-        const settledHistory = historyExpenses
-          .filter(
-            (item) =>
-              item.item_name.includes(`${from} -> ${to}`) ||
-              item.item_name.includes(`${to} -> ${from}`),
-          )
-          .sort(compareNewestFirst);
+        const settledHistory = [...pairHistory].sort(compareNewestFirst);
 
         balanceMap.set(from, roundMoney((balanceMap.get(from) || 0) - amount));
         balanceMap.set(to, roundMoney((balanceMap.get(to) || 0) + amount));

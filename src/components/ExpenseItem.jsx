@@ -1,5 +1,6 @@
 import { Edit2, Trash2, Users } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { formatMoney } from "../utils/trip";
 import useSwipeDrag from "../hooks/useSwipeDrag";
 import { dynaura } from "dynaura";
@@ -13,13 +14,18 @@ export default function ExpenseItem({
   onDelete,
   onOpenSplitModal,
   isLast,
-  isHighlighted, //  รับ State การ Highlight
+  isHighlighted,
   isPendingDelete,
   isPendingSplit,
   isOffline,
 }) {
-  const validSplit = expense.split_between?.filter(m => MEMBERS.includes(m)) || [];
-  const itemRef = useRef(null); //  Ref สำหรับเลื่อนหน้าจอ
+  const validSplit =
+    expense.split_between?.filter((m) => MEMBERS.includes(m)) || [];
+  const itemRef = useRef(null);
+  const splitTriggerRef = useRef(null);
+  const tooltipRef = useRef(null);
+  const [tooltipPos, setTooltipPos] = useState(null);
+
   const isOpen = swipedId === expense.id;
   const isPendingSync = expense.isPendingSync === true;
   const canInteract = !isOffline && !isPendingSync;
@@ -52,29 +58,90 @@ export default function ExpenseItem({
       duration: 4000,
     });
 
-  //  สั่ง Auto-scroll มาที่ Item นี้เมื่อโดน Highlight
   useEffect(() => {
     if (isHighlighted && itemRef.current) {
       itemRef.current.scrollIntoView({
         behavior: "smooth",
-        block: "center", // ให้กล่องรายการอยู่ตรงกลางจอพอดี
+        block: "center",
       });
     }
   }, [isHighlighted]);
 
-  const splitList = validSplit.length > 0 
-  ? validSplit
-  : (MEMBERS.includes(expense.paid_by) ? [expense.paid_by] : [MEMBERS[0]]); // ถ้าไม่มีใครอยู่ใน split_between ให้ใช้ paid_by หรือสมาชิกคนแรกแทน
+  const splitList =
+    validSplit.length > 0
+      ? validSplit
+      : MEMBERS.includes(expense.paid_by)
+        ? [expense.paid_by]
+        : [MEMBERS[0]].filter(Boolean);
+
+  const calculateTooltipPosition = useCallback(() => {
+    if (!splitTriggerRef.current) return null;
+    const rect = splitTriggerRef.current.getBoundingClientRect();
+    const tooltipWidth = 220;
+    const placeAbove = rect.bottom + 130 > window.innerHeight;
+    const left = Math.max(
+      12,
+      Math.min(rect.left - 8, window.innerWidth - tooltipWidth - 12),
+    );
+    const arrowLeft = Math.max(
+      14,
+      Math.min(rect.left + rect.width / 2 - left - 6, tooltipWidth - 26),
+    );
+
+    return {
+      top: placeAbove ? rect.top - 8 : rect.bottom + 8,
+      left,
+      arrowLeft,
+      placeAbove,
+      width: tooltipWidth,
+    };
+  }, []);
+
+  const handleToggleSplitTooltip = (e) => {
+    e.stopPropagation();
+    if (tooltipPos) {
+      setTooltipPos(null);
+      return;
+    }
+    setSwipedId(null);
+    setTooltipPos(calculateTooltipPosition());
+  };
+
+  useEffect(() => {
+    if (!tooltipPos) return;
+
+    const handlePointerDown = (event) => {
+      if (
+        splitTriggerRef.current?.contains(event.target) ||
+        tooltipRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setTooltipPos(null);
+    };
+
+    const handleCloseOnMove = () => setTooltipPos(null);
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("scroll", handleCloseOnMove, true);
+    window.addEventListener("resize", handleCloseOnMove);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("scroll", handleCloseOnMove, true);
+      window.removeEventListener("resize", handleCloseOnMove);
+    };
+  }, [tooltipPos]);
+
   const isGas = expense.category === "ค่าน้ำมัน";
   const distance =
     isGas && expense.odometer_start && expense.odometer_end
       ? Number(expense.odometer_end) - Number(expense.odometer_start)
       : 0;
 
-
   return (
     <div
-      ref={itemRef} //  ผูก Ref เพื่อดึงหน้าจอ
+      ref={itemRef}
       className={`relative bg-gray-900 ${!isLast ? "border-b border-gray-800" : ""}`}
     >
       <div className="absolute inset-y-0 right-3 flex items-center justify-center">
@@ -106,9 +173,10 @@ export default function ExpenseItem({
       </div>
 
       <div
-        //  สลับ Class การสว่าง (Highlight สีเหลือง) หาก isHighlighted เป็น true
-        className={`relative z-10 flex cursor-grab touch-pan-y items-center justify-between p-3 pl-8 active:cursor-grabbing transition-colors duration-700 ${
-          isHighlighted ? "bg-yellow-200/30 shadow-[inset_4px_0_0_#c9c9af]" : "bg-gray-800"
+        className={`relative z-10 flex cursor-grab touch-pan-y items-center justify-between p-3 pl-8 transition-colors duration-700 active:cursor-grabbing ${
+          isHighlighted
+            ? "bg-yellow-200/30 shadow-[inset_4px_0_0_#c9c9af]"
+            : "bg-gray-800"
         }`}
         style={{
           transform: `translate3d(${currentOffset}px, 0, 0)`,
@@ -147,10 +215,16 @@ export default function ExpenseItem({
           <p className="text-xs text-gray-400">
             {expense.category}{" "}
             {splitList.length > 0 && (
-              <span className="text-[10px] text-sky-400">
-                {" "}
+              <button
+                ref={splitTriggerRef}
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={handleToggleSplitTooltip}
+                className="pointer-events-auto inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium text-sky-400 underline decoration-sky-400/50 underline-offset-2 transition hover:bg-sky-400/15"
+              >
                 (หาร {splitList.length} คน)
-              </span>
+              </button>
             )}
           </p>
           {distance > 0 && (
@@ -173,6 +247,7 @@ export default function ExpenseItem({
                   warnOffline();
                   return;
                 }
+                setTooltipPos(null);
                 onOpenSplitModal(expense);
               }}
               className={`flex h-10 w-10 items-center justify-center rounded-full border text-gray-400 transition ${
@@ -193,12 +268,13 @@ export default function ExpenseItem({
                   warnOffline();
                   return;
                 }
+                setTooltipPos(null);
                 onEdit(expense);
                 setSwipedId(null);
               }}
               className={`flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition ${
                 !canInteract
-                  ? "opacity-40 cursor-not-allowed"
+                  ? "cursor-not-allowed opacity-40"
                   : "hover:bg-lime-400/10 hover:text-lime-400"
               }`}
               title="แก้ไขรายการ"
@@ -209,6 +285,47 @@ export default function ExpenseItem({
           </div>
         </div>
       </div>
+
+      {tooltipPos &&
+        createPortal(
+          <div
+            ref={tooltipRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              top: `${tooltipPos.top}px`,
+              left: `${tooltipPos.left}px`,
+              width: `${tooltipPos.width}px`,
+              transform: tooltipPos.placeAbove
+                ? "translateY(-100%)"
+                : "translateY(0)",
+            }}
+            className="fixed z-50 rounded-xl border border-gray-700 bg-gray-900 p-3 text-xs text-gray-100 shadow-2xl"
+          >
+            {/* ลูกศรชี้ไปยังปุ่ม (หาร X คน) */}
+            <div
+              style={{ left: `${tooltipPos.arrowLeft}px` }}
+              className={`absolute h-3 w-3 rotate-45 border-gray-700 bg-gray-900 ${
+                tooltipPos.placeAbove
+                  ? "-bottom-1.5 border-b border-r"
+                  : "-top-1.5 border-l border-t"
+              }`}
+            />
+            <p className="mb-1.5 text-[11px] font-bold text-lime-400">
+              ผู้ร่วมหาร ({splitList.length} คน)
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {splitList.map((member) => (
+                <span
+                  key={member}
+                  className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 text-[11px] font-medium text-gray-100"
+                >
+                  {member}
+                </span>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Check, RefreshCw, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "../utils/trip";
 import { dynaura } from "dynaura";
 
@@ -12,18 +12,72 @@ export default function TripHeader({
   isOffline,
 }) {
   const [syncStatus, setSyncStatus] = useState("idle");
+  const [displayTotal, setDisplayTotal] = useState(0);
+  const [replayCount, setReplayCount] = useState(0);
+  const animatedValueRef = useRef(0);
+  const prevSyncingRef = useRef(isSyncing);
+  const manualSyncRef = useRef(false);
+
   useEffect(() => {
-    if (isSyncing) setSyncStatus("syncing");
-    else if (!isSyncing && syncStatus === "syncing") {
-      setSyncStatus("success");
-      setTimeout(() => setSyncStatus("idle"), 1500);
+    const wasSyncing = prevSyncingRef.current;
+    prevSyncingRef.current = isSyncing;
+
+    if (isSyncing) {
+      setSyncStatus("syncing");
+      return;
     }
-  }, [isSyncing, syncStatus]);
+
+    if (wasSyncing) {
+      setSyncStatus("success");
+      if (manualSyncRef.current) {
+        manualSyncRef.current = false;
+        animatedValueRef.current = 0;
+        setDisplayTotal(0);
+        setReplayCount((count) => count + 1);
+      }
+      const timer = setTimeout(() => setSyncStatus("idle"), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isSyncing]);
+
+  useEffect(() => {
+    const target = Number(totalExpense) || 0;
+    const start = animatedValueRef.current;
+
+    if (Math.abs(target - start) < 0.005) {
+      animatedValueRef.current = target;
+      setDisplayTotal(target);
+      return;
+    }
+
+    const duration = 650;
+    const startTime = performance.now();
+    let frameId;
+
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      // easeOutCubic: วิ่งเร็วช่วงต้นแล้วชะลอนุ่มๆ ตอนเข้าเป้า
+      const eased = 1 - (1 - progress) ** 3;
+      const current = start + (target - start) * eased;
+
+      animatedValueRef.current = current;
+      setDisplayTotal(current);
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
+      } else {
+        animatedValueRef.current = target;
+        setDisplayTotal(target);
+      }
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [totalExpense, replayCount]);
 
   return (
-    <header
-      className="sticky top-0 z-30 bg-gray-900 px-4 pb-4 text-gray-100 shadow-md pt-[calc(env(safe-area-inset-top,0px)+1rem)]"
-    >
+    <header className="sticky top-0 z-30 bg-gray-900 px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] text-gray-100 shadow-md">
       <div className="relative mx-auto max-w-md text-center">
         <button
           onClick={onOpenMemberModal}
@@ -44,11 +98,12 @@ export default function TripHeader({
               });
               return;
             }
+            manualSyncRef.current = true;
             onRefresh();
           }}
           disabled={syncStatus === "syncing" || isOffline}
           className={`absolute right-1 top-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 transition hover:bg-gray-700 ${
-            isOffline ? "opacity-50 cursor-not-allowed" : ""
+            isOffline ? "cursor-not-allowed opacity-50" : ""
           }`}
         >
           {syncStatus === "syncing" ? (
@@ -62,8 +117,8 @@ export default function TripHeader({
         <p className="mt-1 text-sm font-light opacity-80">
           ยอดรวมค่าใช้จ่ายทั้งทริป
         </p>
-        <h1 className="my-1 text-4xl font-bold">
-          ฿{formatMoney(totalExpense)}
+        <h1 className="my-1 text-4xl font-bold tabular-nums">
+          ฿{formatMoney(displayTotal)}
         </h1>
       </div>
     </header>

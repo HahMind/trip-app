@@ -11,6 +11,8 @@ import Swal from "sweetalert2";
 import { dynaura } from "dynaura";
 import ModalShell from "./ModalShell";
 
+const APP_BANKS = BANKS.filter((bank) => Boolean(bank.scheme));
+
 export default function PaymentModal({
   from,
   to,
@@ -22,8 +24,8 @@ export default function PaymentModal({
   isSubmitting,
 }) {
   const details = memberDetails[to] || {};
-  // const [tab, setTab] = useState(details.promptpay ? "qr" : "bank");
   const [tab, setTab] = useState("qr");
+  const [showBankPicker, setShowBankPicker] = useState(false);
   const normalizedPromptPay = normalizePromptPay(details.promptpay);
   const [form, setForm] = useState({
     promptpay: normalizedPromptPay,
@@ -37,11 +39,16 @@ export default function PaymentModal({
 
   useEffect(() => {
     const handleEscape = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (showBankPicker) {
+        setShowBankPicker(false);
+      } else {
+        onClose();
+      }
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+  }, [onClose, showBankPicker]);
 
   const handleSaveDetails = () => {
     if (tab === "qr") {
@@ -68,6 +75,18 @@ export default function PaymentModal({
     }
   };
 
+  const handleCopyAccount = async () => {
+    await openBankApp(details.bankAcc, "", "คัดลอกเลขบัญชีแล้ว");
+    setShowBankPicker(true);
+  };
+
+  const handleOpenSelectedBankApp = (scheme) => {
+    setShowBankPicker(false);
+    if (scheme) {
+      window.location.href = scheme;
+    }
+  };
+
   const handleConfirmPay = async () => {
     if (isSubmitting) return;
     const result = await Swal.fire({
@@ -84,11 +103,12 @@ export default function PaymentModal({
   };
 
   return (
-    <ModalShell
-      backdropClassName="bg-gray-950/80"
-      panelClassName="max-w-sm"
-      onClose={onClose}
-    >
+    <>
+      <ModalShell
+        backdropClassName="bg-gray-950/80"
+        panelClassName="max-w-sm"
+        onClose={onClose}
+      >
         <div className="relative bg-gray-800 p-4 text-center">
           <button
             type="button"
@@ -152,7 +172,10 @@ export default function PaymentModal({
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
+                        promptpay: normalizePromptPay(e.target.value).replace(
+                          /\D/g,
+                          "",
+                        ),
                       })
                     }
                     placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
@@ -160,7 +183,7 @@ export default function PaymentModal({
                   />
                   <button
                     onClick={handleSaveDetails}
-                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold transition hover:bg-gray-600"
                   >
                     บันทึกและสร้าง QR
                   </button>
@@ -183,21 +206,13 @@ export default function PaymentModal({
                   </div>
                   <div>
                     <button
-                      onClick={() =>
-                        openBankApp(
-                          details.bankAcc,
-                          selectedBank?.scheme,
-                          "คัดลอกเลขบัญชีแล้ว",
-                        )
-                      }
+                      type="button"
+                      onClick={handleCopyAccount}
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-800 py-3 text-sm text-gray-300 transition hover:bg-gray-700"
                     >
-                      <Copy size={16} /> ก๊อปเลขบัญชีและเปิดแอปธนาคาร
+                      <Copy size={16} /> คัดลอกเลขบัญชี
                     </button>
                   </div>
-                  <p className="text-center text-[10px] text-gray-500">
-                    *เมื่อกดปุ่ม ระบบจะพยายามเปิดแอปธนาคารให้อัตโนมัติ
-                  </p>
                 </div>
               ) : (
                 <div className="w-full space-y-3">
@@ -223,14 +238,17 @@ export default function PaymentModal({
                     inputMode="numeric"
                     pattern="[0-9]*"
                     onChange={(e) =>
-                      setForm({ ...form, bankAcc: e.target.value.replace(/\D/g, "") })
+                      setForm({
+                        ...form,
+                        bankAcc: e.target.value.replace(/\D/g, ""),
+                      })
                     }
                     placeholder="เลขบัญชี..."
                     className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-base focus:border-lime-400 focus:outline-none"
                   />
                   <button
                     onClick={handleSaveDetails}
-                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold hover:bg-gray-600 transition"
+                    className="w-full rounded bg-gray-700 py-2 text-sm font-bold transition hover:bg-gray-600"
                   >
                     บันทึกข้อมูลบัญชี
                   </button>
@@ -249,10 +267,46 @@ export default function PaymentModal({
                   : "bg-lime-400 hover:bg-lime-300"
               }`}
             >
-              <CheckCircle size={16} /> {isSubmitting ? "กำลังบันทึก..." : "ยืนยันการโอน"}
+              <CheckCircle size={16} />{" "}
+              {isSubmitting ? "กำลังบันทึก..." : "ยืนยันการโอน"}
             </button>
           </div>
         </div>
-    </ModalShell>
+      </ModalShell>
+
+      {showBankPicker && (
+        <ModalShell
+          backdropClassName="bg-gray-950/85 z-60"
+          panelClassName="max-w-xs"
+          onClose={() => setShowBankPicker(false)}
+        >
+          <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 px-4 py-3">
+            <h3 className="text-sm font-bold text-lime-400">
+              ต้องการใช้ธนาคารไหน
+            </h3>
+            <button
+              type="button"
+              onClick={() => setShowBankPicker(false)}
+              className="text-gray-400 transition hover:text-gray-200"
+              aria-label="ปิดหน้าต่าง"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="space-y-2 p-3">
+            {APP_BANKS.map((bank) => (
+              <button
+                key={bank.id}
+                type="button"
+                onClick={() => handleOpenSelectedBankApp(bank.scheme)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-center text-sm font-semibold text-gray-100 transition hover:border-lime-400 hover:bg-gray-700"
+              >
+                {bank.name}
+              </button>
+            ))}
+          </div>
+        </ModalShell>
+      )}
+    </>
   );
 }

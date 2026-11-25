@@ -27,7 +27,61 @@ import usePinchGuard from "./hooks/usePinchGuard";
 import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
+
 const version_number = "3.4.0";
+const TEMP_SPLIT_STORAGE_KEY = "tempSplitBetween";
+const SPLIT_MEMORY_TTL_MS = 10 * 60 * 1000; // จำค่าชั่วคราว 10 นาทีสำหรับคนจ่ายคนเดิม
+
+const readTempSplit = (members, expectedPayer) => {
+  if (!expectedPayer) return null;
+  try {
+    const raw = JSON.parse(
+      localStorage.getItem(TEMP_SPLIT_STORAGE_KEY) || "null",
+    );
+    if (
+      !raw ||
+      raw.payer !== expectedPayer ||
+      !Array.isArray(raw.split) ||
+      typeof raw.expiresAt !== "number"
+    ) {
+      return null;
+    }
+    if (Date.now() >= raw.expiresAt) {
+      localStorage.removeItem(TEMP_SPLIT_STORAGE_KEY);
+      return null;
+    }
+    const validSplit = raw.split.filter((member) => members.includes(member));
+    if (validSplit.length === 0) {
+      localStorage.removeItem(TEMP_SPLIT_STORAGE_KEY);
+      return null;
+    }
+    return {
+      payer: expectedPayer,
+      split: validSplit,
+      expiresAt: raw.expiresAt,
+    };
+  } catch {
+    localStorage.removeItem(TEMP_SPLIT_STORAGE_KEY);
+    return null;
+  }
+};
+
+const writeTempSplit = (
+  payer,
+  split,
+  expiresAt = Date.now() + SPLIT_MEMORY_TTL_MS,
+) => {
+  localStorage.setItem(
+    TEMP_SPLIT_STORAGE_KEY,
+    JSON.stringify({ payer, split, expiresAt }),
+  );
+  return expiresAt;
+};
+
+const clearTempSplit = () => {
+  localStorage.removeItem(TEMP_SPLIT_STORAGE_KEY);
+};
+
 export default function App() {
   const [memberDetails, setMemberDetails] = useState(getStoredMemberDetails);
 
@@ -39,11 +93,57 @@ export default function App() {
       : storedMembers[0] || "";
   });
 
+  const [draftSplitBetween, setDraftSplitBetween] = useState(() => {
+    const storedMembers = getStoredMembers();
+    const saved = localStorage.getItem("defaultPaidBy");
+    const initialPayer =
+      saved && storedMembers.includes(saved) ? saved : storedMembers[0] || "";
+    const temp = readTempSplit(storedMembers, initialPayer);
+    return temp ? temp.split : initialPayer ? [initialPayer] : [];
+  });
+
+  const [splitExpiresAt, setSplitExpiresAt] = useState(() => {
+    const storedMembers = getStoredMembers();
+    const saved = localStorage.getItem("defaultPaidBy");
+    const initialPayer =
+      saved && storedMembers.includes(saved) ? saved : storedMembers[0] || "";
+    const temp = readTempSplit(storedMembers, initialPayer);
+    return temp ? temp.expiresAt : null;
+  });
+
+  const [editPaidBy, setEditPaidBy] = useState("");
+  const [editSplitBetween, setEditSplitBetween] = useState([]);
+
   const updatePaidByFromMembers = useCallback((members) => {
-    setPaidBy((previous) =>
-      members.includes(previous) ? previous : members[0] || "",
-    );
+    setPaidBy((previous) => {
+      const nextPayer = members.includes(previous)
+        ? previous
+        : members[0] || "";
+      const temp = readTempSplit(members, nextPayer);
+      if (temp) {
+        writeTempSplit(nextPayer, temp.split, temp.expiresAt);
+        setDraftSplitBetween(temp.split);
+        setSplitExpiresAt(temp.expiresAt);
+      } else {
+        clearTempSplit();
+        setSplitExpiresAt(null);
+        setDraftSplitBetween(nextPayer ? [nextPayer] : []);
+      }
+      return nextPayer;
+    });
+
+    setEditPaidBy((previous) => {
+      if (!previous) return previous;
+      return members.includes(previous) ? previous : members[0] || "";
+    });
+
+    setEditSplitBetween((previous) => {
+      if (previous.length === 0) return previous;
+      const valid = previous.filter((member) => members.includes(member));
+      return valid.length > 0 ? valid : members[0] ? [members[0]] : [];
+    });
   }, []);
+
   const updateMemberDetailsFromSupabase = useCallback((details) => {
     setMemberDetails(details);
   }, []);
@@ -77,8 +177,6 @@ export default function App() {
   const expenseSubmitLock = useRef(false);
   const settlementSubmitLock = useRef(false);
   const syncOfflineQueueLock = useRef(false);
-  const [draftSplitBetween, setDraftSplitBetween] = useState([paidBy]);
-  const [didEditDraftSplit, setDidEditDraftSplit] = useState(false);
   const [didEditOdometerStart, setDidEditOdometerStart] = useState(false);
   usePinchGuard();
 
@@ -89,6 +187,26 @@ export default function App() {
 
   const [odometerStart, setOdometerStart] = useState("");
   const [odometerEnd, setOdometerEnd] = useState("");
+
+  // ตั้งเวลานับถอยหลัง 10 นาที เพื่อรีเซ็ตคนหารกลับไปเป็นคนจ่ายคนเดียวอัตโนมัติ
+  useEffect(() => {
+    if (!splitExpiresAt) return;
+    const remainingMs = splitExpiresAt - Date.now();
+    if (remainingMs <= 0) {
+      clearTempSplit();
+      setSplitExpiresAt(null);
+      setDraftSplitBetween(paidBy ? [paidBy] : []);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      clearTempSplit();
+      setSplitExpiresAt(null);
+      setDraftSplitBetween(paidBy ? [paidBy] : []);
+    }, remainingMs);
+
+    return () => clearTimeout(timer);
+  }, [splitExpiresAt, paidBy]);
 
   const handleAppClick = () => {
     if (swipedId) setSwipedId(null);
@@ -158,14 +276,8 @@ export default function App() {
     }
   }, [expenses, editId, didEditOdometerStart]);
 
-  useEffect(() => {
-    if (!editId && !didEditDraftSplit) setDraftSplitBetween([paidBy]);
-  }, [paidBy, editId, didEditDraftSplit]);
-
-  // บันทึกตรงเข้า Database
   const handleAddMember = async (name, details) => {
     if (pendingMemberAction) return;
-    // 1. ตรวจสอบสถานะการเชื่อมต่ออินเทอร์เน็ต
     if (isOffline)
       return dynaura.warning({
         title: "ออฟไลน์",
@@ -181,7 +293,6 @@ export default function App() {
         description: "กำลังบันทึกสมาชิกลงฐานข้อมูล",
         progress: 0.15,
       });
-      // 2. บันทึกรายชื่อสมาชิกใหม่ลงฐานข้อมูล Supabase
       try {
         const { error } = await supabase.from("trip_members").insert([
           {
@@ -196,6 +307,9 @@ export default function App() {
 
         setPaidBy(name);
         localStorage.setItem("defaultPaidBy", name);
+        clearTempSplit();
+        setSplitExpiresAt(null);
+        setDraftSplitBetween([name]);
 
         await refreshMembers();
 
@@ -334,14 +448,32 @@ export default function App() {
       });
 
     const wasEditing = Boolean(editId);
+    const currentPayer = wasEditing ? editPaidBy : paidBy;
+    const isTempSplitValid = Boolean(
+      splitExpiresAt && Date.now() < splitExpiresAt,
+    );
+
+    if (!wasEditing && !isTempSplitValid && splitExpiresAt) {
+      clearTempSplit();
+      setSplitExpiresAt(null);
+      setDraftSplitBetween(paidBy ? [paidBy] : []);
+    }
+
+    const targetSplit = wasEditing
+      ? editSplitBetween.length > 0
+        ? editSplitBetween
+        : [currentPayer]
+      : isTempSplitValid && draftSplitBetween.length > 0
+        ? draftSplitBetween
+        : [currentPayer];
+
     const payload = {
       expense_date: formatForDB(date),
       item_name: item.trim() || category,
       amount: numericAmount,
       category,
-      paid_by: paidBy,
-      split_between:
-        draftSplitBetween.length > 0 ? draftSplitBetween : [paidBy],
+      paid_by: currentPayer,
+      split_between: targetSplit,
       odometer_start:
         category === "ค่าน้ำมัน" && odometerStart
           ? Number(odometerStart)
@@ -382,8 +514,6 @@ export default function App() {
         setAmount("");
         setCategory(CATEGORIES[0]);
         setOdometerEnd("");
-        setDraftSplitBetween([paidBy]);
-        setDidEditDraftSplit(false);
         setDidEditOdometerStart(false);
         dynaura.success({
           title: "บันทึกออฟไลน์แล้ว (รอซิงค์เมื่อมีเน็ต)",
@@ -424,6 +554,8 @@ export default function App() {
         if (error) throw error;
         dynaura.update(notificationId, { progress: 0.72 });
         setEditId(null);
+        setEditPaidBy("");
+        setEditSplitBetween([]);
         setHighlightedId(editId);
         setTimeout(() => setHighlightedId(null), 2000);
       } else {
@@ -440,7 +572,6 @@ export default function App() {
       setAmount("");
       setCategory(CATEGORIES[0]);
       setOdometerEnd("");
-      setDraftSplitBetween([paidBy]);
       dynaura.update(notificationId, {
         type: "success",
         title: wasEditing ? "แก้ไขสำเร็จ" : "บันทึกสำเร็จ",
@@ -465,8 +596,22 @@ export default function App() {
 
   const handleUpdateSplit = async (id, newSplit) => {
     if (id === null) {
-      setDraftSplitBetween(newSplit);
-      setDidEditDraftSplit(true);
+      if (editId) {
+        const nextEditSplit = newSplit.length > 0 ? newSplit : [editPaidBy];
+        setEditSplitBetween(nextEditSplit);
+      } else {
+        const nextSplit = newSplit.length > 0 ? newSplit : [paidBy];
+        const isOnlyPayer = nextSplit.length === 1 && nextSplit[0] === paidBy;
+
+        setDraftSplitBetween(nextSplit);
+        if (isOnlyPayer) {
+          clearTempSplit();
+          setSplitExpiresAt(null);
+        } else {
+          const nextExpiresAt = writeTempSplit(paidBy, nextSplit);
+          setSplitExpiresAt(nextExpiresAt);
+        }
+      }
       setActiveSplitExpense(null);
       return true;
     }
@@ -518,6 +663,8 @@ export default function App() {
 
   const cancelEdit = () => {
     setEditId(null);
+    setEditPaidBy("");
+    setEditSplitBetween([]);
     setDate(getTodayISO());
     setItem("");
     setAmount("");
@@ -525,7 +672,6 @@ export default function App() {
     setOdometerStart("");
     setOdometerEnd("");
     setDidEditOdometerStart(false);
-    setDidEditDraftSplit(false);
   };
 
   const handleDelete = async (id) => {
@@ -644,7 +790,7 @@ export default function App() {
       amount: settleAmount,
       category: HISTORY_CATEGORY,
       paid_by: from,
-      split_between: [from], // 👈 🧠 เพิ่มบรรทัดนี้เข้ามา! เพื่อแก้บั๊กไม่ให้ฐานข้อมูลเตือน Error
+      split_between: [from],
     };
 
     settlementSubmitLock.current = true;
@@ -685,21 +831,6 @@ export default function App() {
     }
   };
 
-  // ปิดการทำงานกดค้างเพื่อเลื่อนไปด้านบน
-  // const startPressTimer = () => {
-  //   hasScrolled.current = false;
-  //   setIsPressing(true);
-  //   pressTimer.current = setTimeout(() => {
-  //     window.scrollTo({ top: 0, behavior: "smooth" });
-  //     hasScrolled.current = true;
-  //     setIsPressing(false);
-  //   }, 400);
-  // };
-  // const cancelPressTimer = () => {
-  //   clearTimeout(pressTimer.current);
-  //   setIsPressing(false);
-  // };
-
   const regularExpenses = expenses.filter(
     (e) => e.category !== HISTORY_CATEGORY,
   );
@@ -720,18 +851,8 @@ export default function App() {
   );
 
   const settlements = useSettlements(expenses, MEMBERS);
-
-  // หน้าจอตอนกำลังโหลดข้อมูลตอนเปิดแอปครั้งแรก
-  // if (loading) {
-  //   return (
-  //     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-6 text-center text-gray-100">
-  //       <Loader2 size={48} className="mb-4 animate-spin text-lime-400" />
-  //       <p className="text-sm font-bold text-gray-400">
-  //         กำลังเชื่อมต่อฐานข้อมูล...
-  //       </p>
-  //     </div>
-  //   );
-  // }
+  const activeFormPaidBy = editId ? editPaidBy : paidBy;
+  const activeFormSplitBetween = editId ? editSplitBetween : draftSplitBetween;
 
   return (
     <div
@@ -743,28 +864,18 @@ export default function App() {
         @keyframes drawRing { 0% { stroke-dashoffset: 176; } 100% { stroke-dashoffset: 0; } }
         .animate-draw-fast { animation: drawRing 0.4s linear forwards; }
 
-        /*
-         * DYNAURA_TOASTER_TOP:
-         * แสดงใต้ safe area แล้วปรับระยะเพิ่มเติมจากขอบบนได้ที่เลข px
-         * เพิ่มเลข px เพื่อขยับลง; ลดเลขเพื่อขยับขึ้น
-         */
         .dynaura-root[data-y="top"] {
           top: max(11px, calc(env(safe-area-inset-top, 0px) - 48px));
         }
 
-        /*
-         * DYNAURA_TOASTER_SIZE:
-         * ปรับความกว้างสูงสุดได้ที่ min(380px, 92vw)
-         * เพิ่ม 380px เป็นขนาดกว้างขึ้น ลดลงเพื่อเล็กลง
-         */
         .dynaura-inner {
-        max-width: min(350px, 88vw);
+          max-width: min(350px, 88vw);
         }
         .dynaura-island[data-expanded="true"] .dynaura-inner {
           min-width: min(320px, 88vw);
         }
       `}</style>
-      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md  px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
+      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
         {version_number}
       </div>
 
@@ -801,11 +912,20 @@ export default function App() {
           setAmount={setAmount}
           category={category}
           setCategory={setCategory}
-          paidBy={paidBy}
+          paidBy={activeFormPaidBy}
           setPaidBy={(value) => {
+            if (editId) {
+              setEditPaidBy(value);
+              return;
+            }
+            const isPayerChanged = value !== paidBy;
             setPaidBy(value);
             localStorage.setItem("defaultPaidBy", value);
-            if (!editId && !didEditDraftSplit) setDraftSplitBetween([value]);
+            if (isPayerChanged) {
+              clearTempSplit();
+              setSplitExpiresAt(null);
+              setDraftSplitBetween(value ? [value] : []);
+            }
           }}
           members={MEMBERS}
           odometerStart={odometerStart}
@@ -813,14 +933,14 @@ export default function App() {
           setDidEditOdometerStart={setDidEditOdometerStart}
           odometerEnd={odometerEnd}
           setOdometerEnd={setOdometerEnd}
-          draftSplitBetween={draftSplitBetween}
+          draftSplitBetween={activeFormSplitBetween}
           onOpenSplit={() =>
             setActiveSplitExpense({
               __draft: true,
               item_name: item.trim() || category,
               amount: Number(amount) || 0,
-              paid_by: paidBy,
-              split_between: draftSplitBetween,
+              paid_by: activeFormPaidBy,
+              split_between: activeFormSplitBetween,
             })
           }
           isSubmitting={isSubmittingExpense}
@@ -841,14 +961,22 @@ export default function App() {
               setCollapsedDates((d) => ({ ...d, [val]: !d[val] }))
             }
             onEdit={(exp) => {
+              const validSplit =
+                exp.split_between?.filter((m) => MEMBERS.includes(m)) || [];
+              const resolvedPayer = MEMBERS.includes(exp.paid_by)
+                ? exp.paid_by
+                : MEMBERS[0] || "";
               setEditId(exp.id);
               setDate(parseForUI(exp.expense_date));
-              setPaidBy(exp.paid_by);
+              setEditPaidBy(resolvedPayer);
               setItem(exp.item_name);
               setAmount(exp.amount);
               setCategory(exp.category);
               setOdometerStart(exp.odometer_start || "");
               setOdometerEnd(exp.odometer_end || "");
+              setEditSplitBetween(
+                validSplit.length > 0 ? validSplit : [resolvedPayer],
+              );
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             onDelete={handleDelete}
@@ -896,7 +1024,9 @@ export default function App() {
           onClose={() => setActivePayment(null)}
           onUpdateDetails={handleUpdateMemberDetails}
           onConfirm={handleSettleDebt}
-          isSubmitting={Boolean(pendingSettlement)}
+          isSubmitting={
+            pendingSettlement === `${activePayment.from}-${activePayment.to}`
+          }
         />
       )}
       {activeSettlementDetails && (

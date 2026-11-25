@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatMoney } from "../utils/trip";
 import ModalShell from "./ModalShell";
@@ -38,83 +38,89 @@ export default function SplitModal({ expense, members, onClose, onSave }) {
       panelClassName="max-w-sm"
       onClose={onClose}
     >
-        <div className="flex items-center justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
-          <div>
-            <h3 className="font-bold text-base text-gray-100">
-              ระบุผู้หารรายการ
-            </h3>
-            <p className="text-xs text-lime-400 font-medium">
-              {expense.item_name} (฿{formatMoney(expense.amount)})
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-200"
-          >
-            <X size={20} />
-          </button>
+      <div className="flex items-start justify-between border-b border-gray-800 bg-gray-800 p-4 text-lime-400">
+        <div>
+          <h3 className="text-base font-bold text-gray-100">
+            ระบุผู้หารรายการ
+          </h3>
+          <p className="mt-0.5 text-xs font-medium text-lime-400">
+            {expense.item_name} (฿{formatMoney(expense.amount)})
+          </p>
+          <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-sky-400">
+            <Users size={13} />
+            <span>
+              เลือกแล้ว {selectedSplit.length} คน (จาก {members.length} คน)
+            </span>
+          </p>
         </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 transition hover:text-gray-200"
+        >
+          <X size={20} />
+        </button>
+      </div>
 
-        <div className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหาร</p>
-            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300">
+      <div className="p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-bold text-gray-400">เลือกคนที่ร่วมหาร</p>
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-lime-400 hover:text-lime-300">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              onChange={handleToggleAll}
+              className="split-check h-3.5 w-3.5 cursor-pointer"
+            />
+            <span>เลือกทุกคน</span>
+          </label>
+        </div>
+        <div className="mb-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
+          {members.map((member) => (
+            <label
+              key={member}
+              className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 p-3 transition hover:bg-gray-750"
+            >
+              <span className="text-sm font-medium text-gray-100">
+                {member}
+              </span>
               <input
                 type="checkbox"
-                checked={isAllSelected}
-                onChange={handleToggleAll}
-                className="split-check h-3.5 w-3.5 cursor-pointer"
+                checked={selectedSplit.includes(member)}
+                onChange={() => handleToggle(member)}
+                className="split-check h-4 w-4 cursor-pointer"
               />
-              <span>เลือกทุกคน</span>
             </label>
-          </div>
-          <div className="mb-4 max-h-56 space-y-1.5 overflow-y-auto pr-1">
-            {members.map((member) => (
-              <label
-                key={member}
-                className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-800 bg-gray-800/60 p-3 transition hover:bg-gray-750"
-              >
-                <span className="font-medium text-gray-100 text-sm">
-                  {member}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={selectedSplit.includes(member)}
-                  onChange={() => handleToggle(member)}
-                  className="split-check h-4 w-4 cursor-pointer"
-                />
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-2.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-700"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={async () => {
-                setIsSaving(true);
-                const success = expense.__draft
-                  ? await onSave(null, selectedSplit)
-                  : await onSave(expense.id, selectedSplit);
-                setIsSaving(false);
-                if (success) onClose();
-              }}
-              className={`flex-1 rounded-lg py-2.5 text-xs font-bold text-gray-950 transition ${
-                isSaving
-                  ? "cursor-not-allowed bg-gray-500 shimmer"
-                  : "bg-lime-400 hover:bg-lime-300"
-              }`}
-            >
-              {isSaving ? "กำลังบันทึก..." : "ตกลง"}
-            </button>
-          </div>
+          ))}
         </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-gray-700 bg-gray-800 py-2.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-700"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={async () => {
+              setIsSaving(true);
+              const success = expense.__draft
+                ? await onSave(null, selectedSplit)
+                : await onSave(expense.id, selectedSplit);
+              setIsSaving(false);
+              if (success) onClose();
+            }}
+            className={`flex-1 rounded-lg py-2.5 text-xs font-bold text-gray-950 transition ${
+              isSaving
+                ? "cursor-not-allowed bg-gray-500 shimmer"
+                : "bg-lime-400 hover:bg-lime-300"
+            }`}
+          >
+            {isSaving ? "กำลังบันทึก..." : "ตกลง"}
+          </button>
+        </div>
+      </div>
     </ModalShell>
   );
 }

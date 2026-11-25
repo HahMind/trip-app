@@ -36,7 +36,9 @@ export default function ExpenseForm({
       }`}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className={`mb-4 flex items-center gap-2 font-bold text-lime-400 ${editId ? 'edit-yellow-text' : ''}`}>
+      <div
+        className={`mb-4 flex items-center gap-2 font-bold text-lime-400 ${editId ? "edit-yellow-text" : ""}`}
+      >
         {editId ? (
           <Edit2 size={20} className="text-yellow-400 edit-yellow-text" />
         ) : (
@@ -151,18 +153,21 @@ export default function ExpenseForm({
               />
             </div>
 
-            {!editId && (
-              <button
-                type="button"
-                onClick={onOpenSplit}
-                className="flex w-full items-center justify-center gap-1 rounded-lg border border-gray-700 bg-gray-800 px-2 text-sm font-bold text-lime-400"
-              >
-                <Users size={16} />
-                <span>
-                  หาร {draftSplitBetween.length > 0 ? draftSplitBetween.length : 1} คน
-                </span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onOpenSplit}
+              className={`flex w-full items-center justify-center gap-1 rounded-lg border bg-gray-800 px-2 text-sm font-bold transition ${
+                editId
+                  ? "border-yellow-400/70 text-yellow-400 hover:bg-yellow-400/10"
+                  : "border-gray-700 text-lime-400 hover:border-lime-400/60"
+              }`}
+            >
+              <Users size={16} />
+              <span>
+                หาร {draftSplitBetween.length > 0 ? draftSplitBetween.length : 1}{" "}
+                คน
+              </span>
+            </button>
           </div>
         </div>
 
