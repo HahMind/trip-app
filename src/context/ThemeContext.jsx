@@ -2,10 +2,16 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext(null);
 
+const LEGACY_THEME_MAP = {
+  light: "brown",
+  purple: "coral",
+};
+
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("tripTheme") || "pink",
-  );
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("tripTheme") || "pink";
+    return LEGACY_THEME_MAP[saved] || saved;
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -14,8 +20,8 @@ export function ThemeProvider({ children }) {
     const themeColors = {
       dark: "#111827",
       pink: "#fec7d7",
-      light: "#55423d",
-      purple: "#faeee7",
+      brown: "#55423d",
+      coral: "#faeee7",
     };
     const themeColor = themeColors[theme] || themeColors.dark;
 
