@@ -4,6 +4,17 @@ import { HISTORY_CATEGORY } from "../data/constants";
 const roundMoney = (value) =>
   Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+const parseCreatedTimestamp = (expense) => {
+  const createdScore = expense.created_at
+    ? new Date(expense.created_at).getTime()
+    : 0;
+  if (Number.isFinite(createdScore) && createdScore > 0) {
+    return createdScore;
+  }
+  const numericId = Number(expense.id);
+  return Number.isFinite(numericId) ? numericId : 0;
+};
+
 const parseExpenseTimestamp = (expense) => {
   let dateScore = 0;
   if (
@@ -16,17 +27,11 @@ const parseExpenseTimestamp = (expense) => {
     }
   }
 
-  const createdScore = expense.created_at
-    ? new Date(expense.created_at).getTime()
-    : 0;
-  const fallbackId = Number(expense.id) || 0;
+  const timeScore = parseCreatedTimestamp(expense);
 
   return {
     dateScore: Number.isFinite(dateScore) ? dateScore : 0,
-    timeScore:
-      Number.isFinite(createdScore) && createdScore > 0
-        ? createdScore
-        : fallbackId,
+    timeScore,
   };
 };
 
@@ -49,6 +54,119 @@ const getValidSplitters = (expense, members) => {
   if (validSplit.length > 0) return validSplit;
   if (members.includes(expense.paid_by)) return [expense.paid_by];
   return members.length > 0 ? [members[0]] : [];
+};
+
+const findMatchingSubsetIndices = (events, targetSignedSum) => {
+  if (Math.abs(targetSignedSum) <= 0.005 || events.length === 0) return [];
+  const maxSearchItems = Math.min(events.length, 24);
+  const picked = [];
+
+  const dfs = (index, currentSum) => {
+    if (Math.abs(currentSum - targetSignedSum) <= 0.005 && picked.length > 0) {
+      return true;
+    }
+    if (index >= maxSearchItems) return false;
+
+    picked.push(index);
+    if (dfs(index + 1, roundMoney(currentSum + events[index].signedDelta))) {
+      return true;
+    }
+    picked.pop();
+
+    return dfs(index + 1, currentSum);
+  };
+
+  return dfs(0, 0) ? picked : [];
+};
+
+const filterUnsettledPairItems = (
+  paidByAForB,
+  paidByBForA,
+  pairHistory,
+  personA,
+  personB,
+) => {
+  if (pairHistory.length === 0) {
+    return {
+      unsettledAForB: paidByAForB,
+      unsettledBForA: paidByBForA,
+    };
+  }
+
+  const timeline = [
+    ...paidByAForB.map((item) => ({
+      kind: "expense",
+      side: "A",
+      item,
+      signedDelta: item.shareAmount,
+      createdAt: parseCreatedTimestamp(item),
+    })),
+    ...paidByBForA.map((item) => ({
+      kind: "expense",
+      side: "B",
+      item,
+      signedDelta: -item.shareAmount,
+      createdAt: parseCreatedTimestamp(item),
+    })),
+    ...pairHistory.map((item) => {
+      const isBToA = item.item_name.includes(`${personB} -> ${personA}`);
+      const amount = roundMoney(item.amount || 0);
+      return {
+        kind: "settlement",
+        side: null,
+        item,
+        signedDelta: isBToA ? -amount : amount,
+        createdAt: parseCreatedTimestamp(item),
+      };
+    }),
+  ].sort((a, b) => {
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    if (a.kind !== b.kind) return a.kind === "expense" ? -1 : 1;
+    return (Number(a.item.id) || 0) - (Number(b.item.id) || 0);
+  });
+
+  let runningNet = 0;
+  let unmatchedSettlementDelta = 0;
+  let activeEvents = [];
+
+  timeline.forEach((event) => {
+    runningNet = roundMoney(runningNet + event.signedDelta);
+
+    if (event.kind === "expense") {
+      activeEvents.push(event);
+      return;
+    }
+
+    if (Math.abs(runningNet) <= 0.005) {
+      activeEvents = [];
+      runningNet = 0;
+      unmatchedSettlementDelta = 0;
+    } else {
+      unmatchedSettlementDelta = roundMoney(
+        unmatchedSettlementDelta + event.signedDelta,
+      );
+    }
+  });
+
+  if (Math.abs(unmatchedSettlementDelta) > 0.005 && activeEvents.length > 0) {
+    const matchedIndices = findMatchingSubsetIndices(
+      activeEvents,
+      roundMoney(-unmatchedSettlementDelta),
+    );
+    if (matchedIndices.length > 0) {
+      const matchedSet = new Set(matchedIndices);
+      activeEvents = activeEvents.filter((_, idx) => !matchedSet.has(idx));
+    }
+  }
+
+  return {
+    unsettledAForB: activeEvents
+      .filter((event) => event.side === "A")
+      .map((event) => event.item),
+    unsettledBForA: activeEvents
+      .filter((event) => event.side === "B")
+      .map((event) => event.item),
+  };
 };
 
 export default function useSettlements(expenses, members) {
@@ -129,20 +247,32 @@ export default function useSettlements(expenses, members) {
         );
         if (Math.abs(diff) <= 0.005) continue;
 
+        const { unsettledAForB, unsettledBForA } = filterUnsettledPairItems(
+          paidByAForB,
+          paidByBForA,
+          pairHistory,
+          personA,
+          personB,
+        );
+
         const isBOwesA = diff > 0;
         const from = isBOwesA ? personB : personA;
         const to = isBOwesA ? personA : personB;
         const amount = Math.abs(diff);
 
-        const positiveItems = (isBOwesA ? paidByAForB : paidByBForA).sort(
+        const positiveItems = (isBOwesA ? unsettledAForB : unsettledBForA).sort(
           compareNewestFirst,
         );
-        const negativeItems = (isBOwesA ? paidByBForA : paidByAForB).sort(
+        const negativeItems = (isBOwesA ? unsettledBForA : unsettledAForB).sort(
           compareNewestFirst,
         );
 
-        const positiveTotal = isBOwesA ? totalAForB : totalBForA;
-        const negativeTotal = isBOwesA ? totalBForA : totalAForB;
+        const positiveTotal = roundMoney(
+          positiveItems.reduce((sum, item) => sum + item.shareAmount, 0),
+        );
+        const negativeTotal = roundMoney(
+          negativeItems.reduce((sum, item) => sum + item.shareAmount, 0),
+        );
 
         const settledHistory = [...pairHistory].sort(compareNewestFirst);
 

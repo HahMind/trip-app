@@ -93,7 +93,13 @@ export default function SettlementDetailsModal({ transfer, onClose }) {
 
       {/* Itemized List */}
       <div className="flex-1 space-y-2 overflow-y-auto p-4">
-        {/* 1. รายการบวก (สีเขียว) เรียงวันที่และเวลาล่าสุด -> เก่าสุด */}
+        {positiveItems.length === 0 && negativeItems.length === 0 && (
+          <p className="py-4 text-center text-xs text-gray-400">
+            ไม่มีรายการค้างชำระที่ยังไม่ได้เคลียร์
+          </p>
+        )}
+
+        {/* 1. รายการบวก (สีเขียว) เฉพาะรายการที่ยังค้างชำระ */}
         {positiveItems.map((expense) => (
           <div
             key={`pos-${expense.id}`}
@@ -126,7 +132,7 @@ export default function SettlementDetailsModal({ transfer, onClose }) {
           </div>
         ))}
 
-        {/* 2. รายการลบ (สีแดง) เรียงวันที่และเวลาล่าสุด -> เก่าสุด */}
+        {/* 2. รายการลบ (สีแดง) เฉพาะรายการที่ยังค้างชำระ */}
         {negativeItems.map((expense) => (
           <div
             key={`neg-${expense.id}`}
@@ -159,7 +165,7 @@ export default function SettlementDetailsModal({ transfer, onClose }) {
           </div>
         ))}
 
-        {/* 3. บรรทัดสุดท้าย: เมนูพับเก็บรายการที่ชำระแล้ว (สีเทา ไม่นำมาคำนวณ) */}
+        {/* 3. เมนูพับเก็บรายการที่ชำระแล้ว (สีเทา ไม่นำมาคำนวณ) */}
         <div className="overflow-hidden rounded-lg border border-gray-700 bg-gray-800/60">
           <button
             type="button"
