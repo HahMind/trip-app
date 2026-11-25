@@ -28,7 +28,7 @@ import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
 
-const version_number = "3.4.0";
+const version_number = "3.4.1";
 const TEMP_SPLIT_STORAGE_KEY = "tempSplitBetween";
 const SPLIT_MEMORY_TTL_MS = 10 * 60 * 1000; // จำค่าชั่วคราว 10 นาทีสำหรับคนจ่ายคนเดิม
 
