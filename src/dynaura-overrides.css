@@ -1,0 +1,10 @@
+/*
+ * dynaura-overrides.css
+ * ปิด progress/countdown bar ที่วิ่งใต้ Dynaura notification
+ * ไม่กระทบ logic JS ใดๆ ของ Dynaura ทั้งสิ้น
+ */
+
+/* ซ่อนเส้นนับถอยหลัง/progress ทุก mode (time, value) */
+.dynaura-bar {
+  display: none !important;
+}

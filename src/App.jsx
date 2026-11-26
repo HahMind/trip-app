@@ -29,7 +29,7 @@ import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
 
-const version_number = "3.5.1";
+const version_number = "3.5.2";
 const TEMP_SPLIT_STORAGE_KEY = "tempSplitBetween";
 const SPLIT_MEMORY_TTL_MS = 5 * 60 * 1000; // จำค่าชั่วคราว 5 นาทีสำหรับคนจ่ายคนเดิม
 
@@ -580,7 +580,6 @@ export default function App() {
         description: `${formatMoney(numericAmount)} บาท`,
         progress: undefined,
         duration: 4000,
-        confetti: true,
       });
     } catch (error) {
       dynaura.update(notificationId, {
@@ -817,7 +816,6 @@ export default function App() {
         description: `฿${formatMoney(settleAmount)} จาก ${from} ถึง ${to}`,
         progress: undefined,
         duration: 4000,
-        confetti: true,
       });
     } catch (error) {
       dynaura.update(notificationId, {

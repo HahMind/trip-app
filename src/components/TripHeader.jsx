@@ -119,7 +119,7 @@ export default function TripHeader({
           type="button"
           onClick={onOpenTripSummary}
           aria-label="ดูสรุปยอดรายสมาชิก"
-          className="group inline-flex max-w-[calc(100%-8.25rem)] cursor-pointer flex-col items-center rounded-xl border border-transparent px-3.5 py-1 transition hover:border-gray-700 hover:bg-gray-800 active:scale-[0.98]"
+          className="group inline-flex max-w-[calc(100%-8.25rem)] cursor-pointer flex-col items-center rounded-xl border border-transparent px-3.5 py-1 transition hover:border-gray-700 hover:bg-gray-800 hover:text-white active:scale-[0.98]"
         >
           <span className="mt-0.5 flex items-center justify-center gap-1 text-sm font-light opacity-80">
             <span>ยอดรวมค่าใช้จ่ายทั้งทริป</span>
