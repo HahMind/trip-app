@@ -123,16 +123,15 @@ export default function TripSummaryModal({
                   <p className="min-w-0 truncate text-base font-bold text-gray-100">
                     {member}
                   </p>
+                  <p className="shrink-0 text-xs text-gray-400">
+                    จ่ายทั้งหมด{" "}
+                    <span className="font-bold tabular-nums text-gray-100">
+                      ฿{formatMoney(totalPaid)}
+                    </span>
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <div className="col-span-2 flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 sm:col-span-1 sm:block">
-                    <p className="text-xs text-gray-400">จ่ายทั้งหมด</p>
-                    <p className="text-sm font-bold tabular-nums text-gray-100 sm:mt-0.5 sm:text-base">
-                      ฿{formatMoney(totalPaid)}
-                    </p>
-                  </div>
-
+                <div className="grid grid-cols-2 gap-2">
                   <div
                     className={`rounded-lg border px-3 py-2 ${
                       hasReceive
