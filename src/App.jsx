@@ -30,7 +30,7 @@ import { supabase } from "./services/supabase";
 
 const version_number = "3.4.2";
 const TEMP_SPLIT_STORAGE_KEY = "tempSplitBetween";
-const SPLIT_MEMORY_TTL_MS = 10 * 60 * 1000; // จำค่าชั่วคราว 10 นาทีสำหรับคนจ่ายคนเดิม
+const SPLIT_MEMORY_TTL_MS = 5 * 60 * 1000; // จำค่าชั่วคราว 5 นาทีสำหรับคนจ่ายคนเดิม
 
 const readTempSplit = (members, expectedPayer) => {
   if (!expectedPayer) return null;
