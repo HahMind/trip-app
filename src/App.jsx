@@ -21,6 +21,7 @@ import MemberModal from "./components/MemberModal";
 import PaymentModal from "./components/PaymentModal";
 import SplitModal from "./components/SplitModal";
 import TripHeader from "./components/TripHeader";
+import TripSummaryModal from "./components/TripSummaryModal";
 import ThemeMenu from "./components/ThemeMenu";
 import SettlementSection from "./components/SettlementSection";
 import usePinchGuard from "./hooks/usePinchGuard";
@@ -162,6 +163,7 @@ export default function App() {
   const [collapsedDates, setCollapsedDates] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const [showMemberModal, setShowMemberModal] = useState(false);
+  const [showTripSummary, setShowTripSummary] = useState(false);
   const [activePayment, setActivePayment] = useState(null);
   const [activeSettlementDetails, setActiveSettlementDetails] = useState(null);
   const [activeSplitExpense, setActiveSplitExpense] = useState(null);
@@ -899,6 +901,7 @@ export default function App() {
         MEMBERS={MEMBERS}
         isOffline={isOffline}
         onOpenMemberModal={() => setShowMemberModal(true)}
+        onOpenTripSummary={() => setShowTripSummary(true)}
       />
 
       <main className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 p-4 lg:grid-cols-3">
@@ -1050,6 +1053,13 @@ export default function App() {
           onUndo={handleUndoHistory}
           pendingHistoryId={pendingHistoryId}
           isOffline={isOffline}
+        />
+      )}
+      {showTripSummary && (
+        <TripSummaryModal
+          summaries={settlements.memberSummaries}
+          totalExpense={totalExpense}
+          onClose={() => setShowTripSummary(false)}
         />
       )}
     </div>

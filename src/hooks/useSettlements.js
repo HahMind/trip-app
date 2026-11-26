@@ -297,6 +297,41 @@ export default function useSettlements(expenses, members) {
       balance: balanceMap.get(member) || 0,
     }));
 
-    return { balances, transfers };
+    const paidMap = new Map(members.map((member) => [member, 0]));
+    regularExpenses.forEach((expense) => {
+      if (!paidMap.has(expense.paid_by)) return;
+      const paidAmount = Number(expense.amount);
+      if (!Number.isFinite(paidAmount) || paidAmount <= 0) return;
+      paidMap.set(
+        expense.paid_by,
+        roundMoney((paidMap.get(expense.paid_by) || 0) + paidAmount),
+      );
+    });
+
+    const receiveMap = new Map(members.map((member) => [member, 0]));
+    const oweMap = new Map(members.map((member) => [member, 0]));
+    transfers.forEach((transfer) => {
+      if (receiveMap.has(transfer.to)) {
+        receiveMap.set(
+          transfer.to,
+          roundMoney((receiveMap.get(transfer.to) || 0) + transfer.amount),
+        );
+      }
+      if (oweMap.has(transfer.from)) {
+        oweMap.set(
+          transfer.from,
+          roundMoney((oweMap.get(transfer.from) || 0) + transfer.amount),
+        );
+      }
+    });
+
+    const memberSummaries = members.map((member) => ({
+      member,
+      totalPaid: paidMap.get(member) || 0,
+      toReceive: receiveMap.get(member) || 0,
+      toPay: oweMap.get(member) || 0,
+    }));
+
+    return { balances, transfers, memberSummaries };
   }, [expenses, members]);
 }

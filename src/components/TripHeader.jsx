@@ -1,4 +1,4 @@
-import { Check, RefreshCw, Users } from "lucide-react";
+import { Check, ChevronRight, RefreshCw, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { formatMoney } from "../utils/trip";
 import { dynaura } from "dynaura";
@@ -9,6 +9,7 @@ export default function TripHeader({
   onRefresh,
   MEMBERS,
   onOpenMemberModal,
+  onOpenTripSummary,
   isOffline,
 }) {
   const [syncStatus, setSyncStatus] = useState("idle");
@@ -114,12 +115,23 @@ export default function TripHeader({
             <RefreshCw size={26} className="text-gray-300" />
           )}
         </button>
-        <p className="mt-1 text-sm font-light opacity-80">
-          ยอดรวมค่าใช้จ่ายทั้งทริป
-        </p>
-        <h1 className="my-1 text-4xl font-bold tabular-nums">
-          ฿{formatMoney(displayTotal)}
-        </h1>
+        <button
+          type="button"
+          onClick={onOpenTripSummary}
+          aria-label="ดูสรุปยอดรายสมาชิก"
+          className="group inline-flex max-w-[calc(100%-8.25rem)] cursor-pointer flex-col items-center rounded-xl border border-transparent px-3.5 py-1 transition hover:border-gray-700 hover:bg-gray-800 active:scale-[0.98]"
+        >
+          <span className="mt-0.5 flex items-center justify-center gap-1 text-sm font-light opacity-80">
+            <span>ยอดรวมค่าใช้จ่ายทั้งทริป</span>
+            <ChevronRight
+              size={14}
+              className="opacity-70 transition-transform group-hover:translate-x-0.5"
+            />
+          </span>
+          <span className="my-0.5 block text-[clamp(1.65rem,7.5vw,2.25rem)] font-bold leading-tight tabular-nums">
+            ฿{formatMoney(displayTotal)}
+          </span>
+        </button>
       </div>
     </header>
   );

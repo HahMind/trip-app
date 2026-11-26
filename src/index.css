@@ -358,3 +358,18 @@ html, body {
 [data-theme="pink"] .bg-amber-500\/95 {
   color: #0e172c !important;
 }
+
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+dialog.trip-summary-dialog::backdrop {
+  background-color: rgb(3 7 18 / 0.75);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
