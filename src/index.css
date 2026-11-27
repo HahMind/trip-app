@@ -139,6 +139,9 @@ html[data-theme="pink"] body {
 [data-theme="brown"] .text-gray-100,
 [data-theme="coral"] .text-gray-100,
 [data-theme="pink"] .text-gray-100,
+[data-theme="brown"] .text-gray-200,
+[data-theme="coral"] .text-gray-200,
+[data-theme="pink"] .text-gray-200,
 [data-theme="brown"] .text-white,
 [data-theme="coral"] .text-white,
 [data-theme="pink"] .text-white {
@@ -233,6 +236,82 @@ html[data-theme="pink"] body {
 [data-theme="coral"] .placeholder\:text-gray-400::placeholder,
 [data-theme="pink"] .placeholder\:text-gray-400::placeholder {
   color: var(--theme-text-muted) !important;
+}
+
+/* ไฮไลท์ช่องวันที่เมื่อกดปุ่ม "วันนี้" ครบทั้ง 4 ธีม */
+.date-input-highlight {
+  border-color: #a3e635 !important;
+  background-color: rgb(163 230 53 / 0.16) !important;
+  box-shadow: 0 0 0 2px rgb(163 230 53 / 0.45);
+}
+
+[data-theme="brown"] .date-input-highlight,
+[data-theme="coral"] .date-input-highlight,
+[data-theme="pink"] .date-input-highlight {
+  border-color: var(--theme-accent) !important;
+  background-color: var(--theme-accent-soft) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent) 28%, transparent);
+}
+
+/* จุดสีเหลืองสถานะยังไม่จ่าย ครบทั้ง 4 ธีม */
+.unsettled-dot {
+  background-color: #fbbf24;
+}
+
+[data-theme="brown"] .unsettled-dot,
+[data-theme="coral"] .unsettled-dot,
+[data-theme="pink"] .unsettled-dot {
+  background-color: #d97706;
+}
+
+/* ป้ายชื่อคนหารใน Tooltip แบบ Interactive + Motion ครบทั้ง 4 ธีม */
+.split-pill {
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+.split-pill-active {
+  background-color: #a3e635 !important;
+  border-color: #a3e635 !important;
+  color: #030712 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="brown"] .split-pill-active {
+  background-color: #b84a27 !important;
+  border-color: #b84a27 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="coral"] .split-pill-active {
+  background-color: #d94e70 !important;
+  border-color: #d94e70 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="pink"] .split-pill-active {
+  background-color: #0e172c !important;
+  border-color: #0e172c !important;
+  color: #fffffe !important;
+  font-weight: 700 !important;
+}
+
+.split-pill-inactive {
+  background-color: rgb(31 41 55 / 0.45) !important;
+  border-color: rgb(75 85 99 / 0.55) !important;
+  color: #9ca3af !important;
+  opacity: 0.55;
+}
+
+[data-theme="brown"] .split-pill-inactive,
+[data-theme="coral"] .split-pill-inactive,
+[data-theme="pink"] .split-pill-inactive {
+  background-color: var(--theme-800) !important;
+  border-color: color-mix(in srgb, var(--theme-700) 40%, transparent) !important;
+  color: var(--theme-text-muted) !important;
+  opacity: 0.55;
 }
 
 /* ล็อกการถ่างนิ้วซูมด้วยมือ (Pinch-to-zoom) บน iOS Safari */
@@ -372,4 +451,44 @@ dialog.trip-summary-dialog::backdrop {
   background-color: rgb(3 7 18 / 0.75);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
+}
+/* เพิ่มต่อท้ายไฟล์ src/index.css เดิมได้เลยครับ */
+[data-theme="brown"] .text-emerald-400,
+[data-theme="coral"] .text-emerald-400,
+[data-theme="pink"] .text-emerald-400 {
+  color: #047857 !important;
+}
+
+[data-theme="brown"] .text-rose-400,
+[data-theme="coral"] .text-rose-400,
+[data-theme="pink"] .text-rose-400 {
+  color: #be123c !important;
+}
+
+[data-theme="brown"] .text-amber-400,
+[data-theme="coral"] .text-amber-400,
+[data-theme="pink"] .text-amber-400 {
+  color: #b45309 !important;
+}
+/* ปิดเส้นขอบซ้อนและปรับสี hover ของปุ่มดู Statement ในธีมสว่าง */
+[data-theme="brown"] button.statement-accordion-trigger,
+[data-theme="coral"] button.statement-accordion-trigger,
+[data-theme="pink"] button.statement-accordion-trigger {
+  border: none !important;
+  border-radius: 0 !important;
+  background-color: var(--theme-800) !important;
+}
+
+[data-theme="brown"] button.statement-accordion-trigger:hover,
+[data-theme="coral"] button.statement-accordion-trigger:hover,
+[data-theme="pink"] button.statement-accordion-trigger:hover {
+  background-color: var(--theme-600) !important;
+}
+
+[data-theme="brown"] .statement-accordion-body,
+[data-theme="coral"] .statement-accordion-body,
+[data-theme="pink"] .statement-accordion-body {
+  border-top-width: 2px !important;
+  border-top-color: var(--theme-700) !important;
+  background-color: var(--theme-800) !important;
 }

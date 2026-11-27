@@ -1,4 +1,5 @@
 import { Edit2, Receipt, Users, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { CATEGORIES } from "../data/constants";
 import { getTodayISO } from "../utils/trip";
 
@@ -27,6 +28,28 @@ export default function ExpenseForm({
   onOpenSplit,
   setDidEditOdometerStart,
 }) {
+  const [isDateHighlighted, setIsDateHighlighted] = useState(false);
+  const highlightTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSetToday = () => {
+    setDate(getTodayISO());
+    setIsDateHighlighted(true);
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = setTimeout(() => {
+      setIsDateHighlighted(false);
+    }, 700);
+  };
+
   return (
     <section
       className={`rounded-xl border p-6 shadow-sm transition-colors lg:col-span-3 ${
@@ -54,12 +77,14 @@ export default function ExpenseForm({
             type="date"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 focus:border-lime-400 focus:outline-none"
+            className={`w-full rounded-lg border border-gray-700 bg-gray-800 p-2 text-sm text-gray-100 transition-all duration-300 focus:border-lime-400 focus:outline-none ${
+              isDateHighlighted ? "date-input-highlight" : ""
+            }`}
           />
           <button
             type="button"
-            onClick={() => setDate(getTodayISO())}
-            className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition hover:bg-lime-300"
+            onClick={handleSetToday}
+            className="w-1/4 rounded-lg bg-lime-400 px-3 text-sm font-bold text-gray-950 transition-all duration-150 hover:bg-lime-300 active:scale-95"
           >
             วันนี้
           </button>

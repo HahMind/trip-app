@@ -180,6 +180,8 @@ export default function useSettlements(expenses, members) {
 
     const balanceMap = new Map(members.map((member) => [member, 0]));
     const transfers = [];
+    const unsettledPairItemIds = new Set();
+    const settledHistoryPairItemIds = new Set();
 
     for (let i = 0; i < members.length; i += 1) {
       for (let j = i + 1; j < members.length; j += 1) {
@@ -216,17 +218,33 @@ export default function useSettlements(expenses, members) {
           }
         });
 
+        const pairHistory = historyExpenses.filter(
+          (item) =>
+            item.item_name.includes(`${personA} -> ${personB}`) ||
+            item.item_name.includes(`${personB} -> ${personA}`),
+        );
+
+        const { unsettledAForB, unsettledBForA } = filterUnsettledPairItems(
+          paidByAForB,
+          paidByBForA,
+          pairHistory,
+          personA,
+          personB,
+        );
+
+        unsettledAForB.forEach((item) => unsettledPairItemIds.add(item.id));
+        unsettledBForA.forEach((item) => unsettledPairItemIds.add(item.id));
+
+        if (pairHistory.length > 0) {
+          paidByAForB.forEach((item) => settledHistoryPairItemIds.add(item.id));
+          paidByBForA.forEach((item) => settledHistoryPairItemIds.add(item.id));
+        }
+
         const totalAForB = roundMoney(
           paidByAForB.reduce((sum, item) => sum + item.shareAmount, 0),
         );
         const totalBForA = roundMoney(
           paidByBForA.reduce((sum, item) => sum + item.shareAmount, 0),
-        );
-
-        const pairHistory = historyExpenses.filter(
-          (item) =>
-            item.item_name.includes(`${personA} -> ${personB}`) ||
-            item.item_name.includes(`${personB} -> ${personA}`),
         );
 
         const settledByBToA = roundMoney(
@@ -247,14 +265,6 @@ export default function useSettlements(expenses, members) {
         );
         if (Math.abs(diff) <= 0.005) continue;
 
-        const { unsettledAForB, unsettledBForA } = filterUnsettledPairItems(
-          paidByAForB,
-          paidByBForA,
-          pairHistory,
-          personA,
-          personB,
-        );
-
         const isBOwesA = diff > 0;
         const from = isBOwesA ? personB : personA;
         const to = isBOwesA ? personA : personB;
@@ -266,6 +276,20 @@ export default function useSettlements(expenses, members) {
         const negativeItems = (isBOwesA ? unsettledBForA : unsettledAForB).sort(
           compareNewestFirst,
         );
+
+        const allToForFromItems = [...(isBOwesA ? paidByAForB : paidByBForA)].sort(
+          compareNewestFirst,
+        );
+        const allFromForToItems = [...(isBOwesA ? paidByBForA : paidByAForB)].sort(
+          compareNewestFirst,
+        );
+
+        const allToForFromTotal = isBOwesA ? totalAForB : totalBForA;
+        const allFromForToTotal = isBOwesA ? totalBForA : totalAForB;
+
+        const settledFromToTo = isBOwesA ? settledByBToA : settledByAToB;
+        const settledToToFrom = isBOwesA ? settledByAToB : settledByBToA;
+        const settledAdjustment = roundMoney(settledToToFrom - settledFromToTo);
 
         const positiveTotal = roundMoney(
           positiveItems.reduce((sum, item) => sum + item.shareAmount, 0),
@@ -287,10 +311,41 @@ export default function useSettlements(expenses, members) {
           negativeItems,
           positiveTotal,
           negativeTotal,
+          allToForFromItems,
+          allFromForToItems,
+          allToForFromTotal,
+          allFromForToTotal,
+          settledFromToTo,
+          settledToToFrom,
+          settledAdjustment,
           settledHistory,
         });
       }
     }
+
+    const unsettledExpenseIds = new Set();
+    const settledExpenseIds = new Set();
+
+    regularExpenses.forEach((expense) => {
+      const splitters = getValidSplitters(expense, members);
+      if (splitters.length === 1 && splitters[0] === expense.paid_by) {
+        return;
+      }
+
+      const shareAmount =
+        splitters.length > 0
+          ? roundMoney(Number(expense.amount) / splitters.length)
+          : 0;
+      if (shareAmount <= 0 || !members.includes(expense.paid_by)) {
+        return;
+      }
+
+      if (unsettledPairItemIds.has(expense.id)) {
+        unsettledExpenseIds.add(expense.id);
+      } else if (settledHistoryPairItemIds.has(expense.id)) {
+        settledExpenseIds.add(expense.id);
+      }
+    });
 
     const balances = members.map((member) => ({
       member,
@@ -332,6 +387,12 @@ export default function useSettlements(expenses, members) {
       toPay: oweMap.get(member) || 0,
     }));
 
-    return { balances, transfers, memberSummaries };
+    return {
+      balances,
+      transfers,
+      memberSummaries,
+      unsettledExpenseIds,
+      settledExpenseIds,
+    };
   }, [expenses, members]);
 }

@@ -4,7 +4,6 @@ import {
   ChevronDown,
   FileText,
   History,
-  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { formatMoney } from "../utils/trip";
@@ -34,21 +33,10 @@ export default function SettlementSection({
         }}
         className="flex cursor-pointer select-none items-center justify-between gap-2"
       >
-        <div className="flex items-center gap-2">
-          <h2 className="flex items-center gap-2 font-bold text-lime-400">
-            <Users size={20} /> สรุปเคลียร์เงิน
+        <div className="flex items-center gap-2 font-bold text-gray-300">
+          <h2 className="font-bold text-gray-300">
+            สรุปเคลียร์เงิน ({transferCount})
           </h2>
-          {!isOpen && (
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                transferCount > 0
-                  ? "border-lime-500/40 bg-lime-500/15 text-lime-400"
-                  : "border-gray-700 bg-gray-800 text-gray-400"
-              }`}
-            >
-              {transferCount > 0 ? `${transferCount} รายการ` : "ครบแล้ว"}
-            </span>
-          )}
           <ChevronDown
             size={18}
             className={`text-gray-400 transition-transform duration-200 ${

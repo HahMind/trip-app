@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BANKS } from "../data/constants";
 import useSwipeDrag from "../hooks/useSwipeDrag";
 import { dynaura } from "dynaura";
-import { normalizePromptPay, validatePromptPay } from "../utils/trip";
+import { validatePromptPay } from "../utils/trip";
 
 export default function MemberItem({
   member,
@@ -59,9 +59,8 @@ export default function MemberItem({
 
   return (
     <div className="relative mb-2 overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
-      
       {/* 💻 [Desktop View] ปุ่มลบโชว์ไว้ตลอดทางด้านขวา ไม่ต้องปัด */}
-      <div className="absolute inset-y-0 right-3 hidden md:flex items-center justify-center z-20">
+      <div className="absolute inset-y-0 right-3 z-20 hidden items-center justify-center md:flex">
         <button
           onClick={() => {
             if (isOffline) {
@@ -75,8 +74,8 @@ export default function MemberItem({
             isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
-              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-              : "bg-red-500 text-white hover:bg-red-600"
+                ? "cursor-not-allowed bg-gray-700 text-gray-500"
+                : "bg-red-500 text-white hover:bg-red-600"
           }`}
           title={hasDebt ? "มียอดค้างชำระ ลบไม่ได้" : "ลบสมาชิก"}
         >
@@ -85,7 +84,7 @@ export default function MemberItem({
       </div>
 
       {/* 📱 [Mobile View] ปุ่มลบสำหรับระบบ Swipe */}
-      <div className="absolute inset-y-0 right-3 flex md:hidden items-center justify-center">
+      <div className="absolute inset-y-0 right-3 flex items-center justify-center md:hidden">
         <button
           onClick={() => {
             if (isOffline) {
@@ -100,13 +99,15 @@ export default function MemberItem({
             isPending || isOffline
               ? "cursor-not-allowed bg-gray-500 shimmer"
               : hasDebt
-              ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-              : "bg-red-500 text-white hover:bg-red-600"
+                ? "cursor-not-allowed bg-gray-700 text-gray-500"
+                : "bg-red-500 text-white hover:bg-red-600"
           }`}
           style={{
             opacity: Math.min(1, -currentOffset / 40),
             transform: `scale(${Math.min(1.08, 0.2 + (-currentOffset / 70) * 0.8)})`,
-            transition: drag.active ? "none" : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            transition: drag.active
+              ? "none"
+              : "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           }}
         >
           <Trash2 size={20} />
@@ -142,9 +143,9 @@ export default function MemberItem({
                 return;
               }
               onEdit();
-              setShowNewPayForm(false); 
+              setShowNewPayForm(false);
             }}
-            className="p-1.5 text-sky-400 transition hover:bg-sky-400/20 rounded z-30"
+            className="z-30 rounded p-1.5 text-sky-400 transition hover:bg-sky-400/20"
             disabled={isOffline}
           >
             <Edit2 size={16} />
@@ -153,20 +154,20 @@ export default function MemberItem({
       </div>
 
       {isEditing && (
-        <div className="border-t border-gray-700 bg-gray-900/80 p-3 space-y-3">
+        <div className="space-y-3 border-t border-gray-700 bg-gray-900/80 p-3">
           <div>
             <label className="mb-1 block text-[10px] text-gray-400">
               เบอร์พร้อมเพย์ (เว้นว่างได้)
             </label>
             <input
-              type="tel"
-              value={form.promptpay}
+              type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
+              autoComplete="tel"
+              value={form.promptpay}
               onChange={(e) =>
                 setForm({
                   ...form,
-                  promptpay: normalizePromptPay(e.target.value).replace(/\D/g, ""),
+                  promptpay: e.target.value,
                 })
               }
               className="w-full rounded border border-gray-700 bg-gray-800 p-2 text-sm focus:border-lime-400 focus:outline-none"
@@ -233,7 +234,7 @@ export default function MemberItem({
             }}
             disabled={isOffline}
             className={`flex w-full items-center justify-center gap-1 rounded bg-lime-400 py-2 text-sm font-bold text-gray-950 transition hover:bg-lime-300 ${
-              isOffline ? "opacity-50 cursor-not-allowed" : ""
+              isOffline ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
             <Save size={16} /> บันทึกข้อมูล

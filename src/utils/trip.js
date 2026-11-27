@@ -54,24 +54,29 @@ export const normalizePromptPay = (value) => {
 
 export const validatePromptPay = (value) => {
   const raw = String(value || "").trim();
-  if (raw && /[^0-9+\-\s]/.test(raw)) {
+  if (!raw) return { valid: true, normalized: "" };
+
+  if (/[^0-9+\-\s]/.test(raw)) {
     return {
       valid: false,
       normalized: "",
-      message: "กรุณากรอกเฉพาะตัวเลข เว้นวรรคหรือเครื่องหมาย - เท่านั้น",
+      message: "กรุณากรอกเฉพาะตัวเลขเท่านั้น",
     };
   }
-  if (raw.includes("+") && !raw.replace(/[\s-]/g, "").startsWith("+66")) {
+
+  const compact = raw.replace(/[\s-]/g, "");
+  if (
+    compact.includes("+") &&
+    (!compact.startsWith("+66") || compact.slice(1).includes("+"))
+  ) {
     return {
       valid: false,
       normalized: "",
-      message: "กรุณากรอกเบอร์โทรหรือเลขบัตรประชาชนที่ถูกต้อง",
+      message: "กรุณากรอกเฉพาะตัวเลขเท่านั้น",
     };
   }
 
   const normalized = normalizePromptPay(value);
-  if (!normalized) return { valid: true, normalized: "" };
-
   const valid =
     (normalized.length === 10 && /^0\d{9}$/.test(normalized)) ||
     (normalized.length === 13 && /^\d{13}$/.test(normalized));
@@ -122,6 +127,7 @@ export const openBankApp = async (textToCopy, scheme, title) => {
 
   if (scheme) window.location.href = scheme;
 };
+
 // ดึงข้อมูลคิวที่ค้างซิงค์ (Get pending sync queue)
 export const getOfflineQueue = () => {
   try {

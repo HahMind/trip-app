@@ -29,7 +29,7 @@ import useTripData from "./hooks/useTripData";
 import useSettlements from "./hooks/useSettlements";
 import { supabase } from "./services/supabase";
 
-const version_number = "3.5.3";
+const version_number = "3.5.6";
 const TEMP_SPLIT_STORAGE_KEY = "tempSplitBetween";
 const SPLIT_MEMORY_TTL_MS = 5 * 60 * 1000; // จำค่าชั่วคราว 5 นาทีสำหรับคนจ่ายคนเดิม
 
@@ -190,7 +190,7 @@ export default function App() {
   const [odometerStart, setOdometerStart] = useState("");
   const [odometerEnd, setOdometerEnd] = useState("");
 
-  // ตั้งเวลานับถอยหลัง 10 นาที เพื่อรีเซ็ตคนหารกลับไปเป็นคนจ่ายคนเดียวอัตโนมัติ
+  // ตั้งเวลานับถอยหลังเพื่อรีเซ็ตคนหารกลับไปเป็นคนจ่ายคนเดียวอัตโนมัติ
   useEffect(() => {
     if (!splitExpiresAt) return;
     const remainingMs = splitExpiresAt - Date.now();
@@ -639,6 +639,9 @@ export default function App() {
         .eq("id", id);
       if (error) throw error;
       dynaura.update(notificationId, { progress: 0.72 });
+      if (editId === id) {
+        setEditSplitBetween(newSplit);
+      }
       await refreshExpenses();
       dynaura.update(notificationId, {
         type: "success",
@@ -708,6 +711,9 @@ export default function App() {
           .delete()
           .eq("id", id);
         if (error) throw error;
+        if (editId === id) {
+          cancelEdit();
+        }
         dynaura.update(notificationId, { progress: 0.72 });
         await refreshExpenses();
         dynaura.update(notificationId, {
@@ -875,7 +881,7 @@ export default function App() {
           min-width: min(320px, 88vw);
         }
       `}</style>
-      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-70 rounded-md px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
+      <div className="fixed right-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] z-70 rounded-md px-1.5 py-1 pointer-events-none select-none text-[10px] text-gray-700 opacity-50 shadow-lg">
         {version_number}
       </div>
 
@@ -981,13 +987,16 @@ export default function App() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             onDelete={handleDelete}
-            onOpenSplitModal={setActiveSplitExpense}
+            onUpdateSplit={handleUpdateSplit}
             pendingDeleteId={pendingDeleteId}
             pendingSplitId={pendingSplitId}
             swipedId={swipedId}
             setSwipedId={setSwipedId}
             highlightedId={highlightedId}
             MEMBERS={MEMBERS}
+            isOffline={isOffline}
+            unsettledExpenseIds={settlements.unsettledExpenseIds}
+            settledExpenseIds={settlements.settledExpenseIds}
           />
         </div>
 

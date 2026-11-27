@@ -154,7 +154,7 @@ export default function PaymentModal({
                   </div>
                   <p className="text-xs text-gray-400">
                     พร้อมเพย์:{" "}
-                    <span className="font-mono text-gray-200">
+                    <span className="font-mono text-gray-100">
                       {normalizedPromptPay}
                     </span>
                   </p>
@@ -165,17 +165,14 @@ export default function PaymentModal({
                     ไม่มีข้อมูลพร้อมเพย์ของ {to}
                   </p>
                   <input
-                    type="tel"
-                    value={form.promptpay}
+                    type="text"
                     inputMode="numeric"
-                    pattern="[0-9]*"
+                    autoComplete="tel"
+                    value={form.promptpay}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        promptpay: normalizePromptPay(e.target.value).replace(
-                          /\D/g,
-                          "",
-                        ),
+                        promptpay: e.target.value,
                       })
                     }
                     placeholder="กรอกเบอร์โทรหรือเลขบัตร..."
